@@ -243,23 +243,29 @@
   .cal-nav button{background:var(--card);border:1px solid var(--paper-line);border-radius:8px;width:32px;height:32px;font-size:15px;}
   .cal-month{font-size:16px;font-weight:800;font-family:var(--mono);min-width:110px;text-align:center;}
   .cal-filter select{padding:8px 10px;border-radius:8px;border:1px solid var(--paper-line);font-size:13px;background:var(--card);}
-  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:14px;}
+  .cal-dow-row{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:14px;}
   .cal-dow{font-family:var(--mono);font-size:11px;color:var(--ink-soft);text-align:center;padding-bottom:4px;letter-spacing:.05em;}
+  .week-row{margin-bottom:4px;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
   .cal-cell{
-    background:var(--card);border:1px solid var(--paper-line);border-radius:8px;min-height:86px;padding:6px;
-    display:flex;flex-direction:column;gap:3px;cursor:pointer;
+    background:var(--card);border:1px solid var(--paper-line);border-radius:8px;min-height:78px;padding:5px 4px;
+    display:flex;flex-direction:column;gap:2px;cursor:pointer;
   }
   .cal-cell.empty-cell{background:transparent;border:none;cursor:default;}
   .cal-cell.today{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);}
+  .cal-cell.picked{border-color:var(--navy);box-shadow:inset 0 0 0 1.5px var(--navy);}
   .cal-cell:hover:not(.empty-cell){border-color:var(--steel);}
-  .cal-date{font-family:var(--mono);font-size:11px;color:var(--ink-soft);}
-  .cal-dot{
-    font-size:10px;padding:2px 5px;border-radius:4px;color:#fff;font-weight:700;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  .cal-date{font-family:var(--mono);font-size:11px;color:var(--ink-soft);padding-left:2px;}
+  .gantt-bar{
+    height:15px;border-radius:0;flex-shrink:0;display:flex;align-items:center;overflow:hidden;
   }
-  .cal-dots-row{display:flex;flex-wrap:wrap;gap:2px;margin-top:2px;}
-  .cal-dot-mini{width:8px;height:8px;border-radius:2px;flex-shrink:0;}
-  .cal-more{font-family:var(--mono);font-size:9px;color:var(--ink-soft);}
+  .gantt-bar.empty{background:transparent;}
+  .gantt-bar.round-l{border-radius:4px 0 0 4px;margin-left:1px;}
+  .gantt-bar.round-r{border-radius:0 4px 4px 0;margin-right:1px;}
+  .gantt-bar.round-l.round-r{border-radius:4px;margin-left:1px;margin-right:1px;}
+  .gantt-label{
+    font-size:9.5px;color:#fff;font-weight:700;padding-left:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
   .cal-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;}
   .legend-item{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-soft);}
   .legend-dot{width:9px;height:9px;border-radius:3px;}
@@ -333,6 +339,15 @@ const DOW = ["일","월","화","수","목","금","토"];
 const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
 const pad = n => String(n).padStart(2,"0");
 const todayStr = () => { const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+function scheduleRange(sc){
+  const start = sc.startDate || sc.date;
+  const end = sc.endDate || sc.startDate || sc.date;
+  return end < start ? { start: end, end: start } : { start, end };
+}
+function daySpan(sc){
+  const { start, end } = scheduleRange(sc);
+  return Math.round((new Date(end) - new Date(start)) / 86400000) + 1;
+}
 
 function loadLS(key, fallback){
   try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
@@ -455,9 +470,11 @@ function SitesTab({ sites, setSites, trades, schedules, setSchedules }){
               <div className="corner" />
               <p className="site-name">{site.name}</p>
               <p className="site-addr">📍 {site.address || "주소 미등록"}</p>
+              {site.officePhone && <p className="site-addr">🏢 {site.officeName || "관리사무소"} · {site.officePhone}</p>}
               <div className="tag-row">
                 <span className={"tag" + (site.floorPlan ? " ok":"")}>{site.floorPlan ? "도면 등록됨" : "도면 없음"}</span>
                 <span className={"tag" + (site.estimate ? " ok":"")}>{site.estimate ? "견적서 등록됨" : "견적서 없음"}</span>
+                <span className={"tag" + (site.officePhone ? " ok":"")}>{site.officePhone ? "관리사무소 등록됨" : "관리사무소 없음"}</span>
                 <span className="tag">{schedules.filter(sc=>sc.siteId===site.id).length}건 일정</span>
               </div>
               <div className="site-actions">
@@ -495,6 +512,8 @@ function SiteFormModal({ onClose, onSave, initial }){
   const [memo, setMemo] = useState(initial?.memo || "");
   const [floorPlan, setFloorPlan] = useState(initial?.floorPlan || null);
   const [estimate, setEstimate] = useState(initial?.estimate || null);
+  const [officeName, setOfficeName] = useState(initial?.officeName || "");
+  const [officePhone, setOfficePhone] = useState(initial?.officePhone || "");
 
   async function handleFile(e, setter){
     const file = e.target.files[0];
@@ -515,7 +534,10 @@ function SiteFormModal({ onClose, onSave, initial }){
 
   function submit(){
     if(!name.trim() || !address.trim()){ alert("현장명과 주소는 필수입니다."); return; }
-    onSave({ name: name.trim(), address: address.trim(), memo: memo.trim(), floorPlan, estimate });
+    onSave({
+      name: name.trim(), address: address.trim(), memo: memo.trim(), floorPlan, estimate,
+      officeName: officeName.trim(), officePhone: officePhone.trim(),
+    });
   }
 
   return (
@@ -533,6 +555,17 @@ function SiteFormModal({ onClose, onSave, initial }){
         <div className="field">
           <label>주소</label>
           <input type="text" value={address} onChange={e=>setAddress(e.target.value)} placeholder="지번 또는 도로명 주소" />
+        </div>
+
+        <div className="row2">
+          <div className="field">
+            <label>관리사무소 이름</label>
+            <input type="text" value={officeName} onChange={e=>setOfficeName(e.target.value)} placeholder="예: OO아파트 관리사무소" />
+          </div>
+          <div className="field">
+            <label>관리사무소 연락처</label>
+            <input type="text" value={officePhone} onChange={e=>setOfficePhone(e.target.value)} placeholder="예: 02-1234-5678" />
+          </div>
         </div>
 
         <div className="row2">
@@ -556,7 +589,7 @@ function SiteFormModal({ onClose, onSave, initial }){
 
         <div className="field">
           <label>메모</label>
-          <textarea value={memo} onChange={e=>setMemo(e.target.value)} placeholder="특이사항, 관리사무소 연락처 등" />
+          <textarea value={memo} onChange={e=>setMemo(e.target.value)} placeholder="특이사항 등" />
         </div>
 
         <div className="modal-footer">
@@ -585,12 +618,13 @@ function SiteDetailModal({ site, trades, schedules, onClose, onUpdateSite, onAdd
 
         <div className="tag-row" style={{marginBottom:14}}>
           <span className="tag">📍 {site.address}</span>
+          {site.officePhone && <span className="tag">🏢 {site.officeName || "관리사무소"} · {site.officePhone}</span>}
           {site.floorPlan && <span className="tag ok" style={{cursor:"pointer"}} onClick={()=>onViewFile(site.floorPlan)}>도면 보기</span>}
           {site.estimate && <span className="tag ok" style={{cursor:"pointer"}} onClick={()=>onViewFile(site.estimate)}>견적서 보기</span>}
           <button className="btn btn-ghost btn-sm" onClick={()=>setEditing(true)}>현장정보 수정</button>
         </div>
 
-        <p className="eyebrow" style={{marginBottom:8}}>TRADES / 공사별 일정</p>
+        <p className="eyebrow" style={{marginBottom:8}}>TRADES / 공사별 일정 (기간)</p>
         <div className="trade-list">
           {trades.map(trade => {
             const tradeSchedules = schedules.filter(s => s.tradeId===trade.id);
@@ -603,7 +637,7 @@ function SiteDetailModal({ site, trades, schedules, onClose, onUpdateSite, onAdd
                     {tradeSchedules.length===0 && <div className="trade-note">{trade.note}</div>}
                   </div>
                   <button className="btn btn-ghost btn-sm" onClick={()=>setAddingTradeId(addingTradeId===trade.id ? null : trade.id)}>
-                    + 일정 추가
+                    + 기간 추가
                   </button>
                 </div>
 
@@ -611,9 +645,11 @@ function SiteDetailModal({ site, trades, schedules, onClose, onUpdateSite, onAdd
                   <div className="sched-chips">
                     {tradeSchedules.map(sc => {
                       const contact = trade.contacts.find(c=>c.id===sc.contactId);
+                      const { start, end } = scheduleRange(sc);
+                      const span = daySpan(sc);
                       return (
                         <span className="chip" key={sc.id}>
-                          📅 {sc.date} · {contact?.name || "담당자 미지정"} {sc.memo && `· ${sc.memo}`}
+                          📅 {start}{end!==start && ` ~ ${end}`} ({span}일) · {contact?.name || "담당자 미지정"} {sc.memo && `· ${sc.memo}`}
                           <span className="x" onClick={()=>onDeleteSchedule(sc.id)}>✕</span>
                         </span>
                       );
@@ -649,15 +685,30 @@ function SiteDetailModal({ site, trades, schedules, onClose, onUpdateSite, onAdd
 }
 
 function AddScheduleInline({ trade, onCancel, onAdd }){
-  const [date, setDate] = useState(todayStr());
+  const [startDate, setStartDate] = useState(todayStr());
+  const [endDate, setEndDate] = useState(todayStr());
   const [contactId, setContactId] = useState(trade.contacts[0]?.id || "");
   const [memo, setMemo] = useState("");
+
+  function handleStartChange(v){
+    setStartDate(v);
+    if(endDate < v) setEndDate(v);
+  }
+
+  function submit(){
+    if(!startDate || !endDate){ alert("시작일과 종료일을 입력해주세요."); return; }
+    onAdd({ startDate, endDate: endDate < startDate ? startDate : endDate, contactId, memo });
+  }
 
   return (
     <div className="row2" style={{marginTop:8, background:"var(--paper)", padding:10, borderRadius:8}}>
       <div className="field" style={{marginBottom:0}}>
-        <label>날짜</label>
-        <input type="date" value={date} onChange={e=>setDate(e.target.value)} />
+        <label>시작일</label>
+        <input type="date" value={startDate} onChange={e=>handleStartChange(e.target.value)} />
+      </div>
+      <div className="field" style={{marginBottom:0}}>
+        <label>종료일 (총 기간)</label>
+        <input type="date" value={endDate} min={startDate} onChange={e=>setEndDate(e.target.value)} />
       </div>
       <div className="field" style={{marginBottom:0}}>
         <label>담당자</label>
@@ -665,13 +716,13 @@ function AddScheduleInline({ trade, onCancel, onAdd }){
           {trade.contacts.map(c => <option value={c.id} key={c.id}>{c.name}{c.isDefault ? " (기본)" : ""}</option>)}
         </select>
       </div>
-      <div className="field" style={{gridColumn:"1 / -1", marginBottom:0}}>
+      <div className="field" style={{marginBottom:0}}>
         <label>메모</label>
         <input type="text" value={memo} onChange={e=>setMemo(e.target.value)} placeholder="예: 실측 약속, 오전 시공 등" />
       </div>
       <div style={{gridColumn:"1 / -1", display:"flex", justifyContent:"flex-end", gap:8, marginTop:4}}>
         <button className="btn btn-ghost btn-sm" onClick={onCancel}>취소</button>
-        <button className="btn btn-primary btn-sm" onClick={()=>onAdd({date, contactId, memo})}>추가</button>
+        <button className="btn btn-primary btn-sm" onClick={submit}>추가</button>
       </div>
     </div>
   );
@@ -727,16 +778,61 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   const filtered = schedules.filter(sc => siteFilter==="all" || sc.siteId===siteFilter);
 
   const { y, m } = cursor;
-  const firstDow = new Date(y, m, 1).getDay();
-  const daysInMonth = new Date(y, m+1, 0).getDate();
-  const cells = [];
-  for(let i=0;i<firstDow;i++) cells.push(null);
-  for(let d=1; d<=daysInMonth; d++) cells.push(d);
+
+  // build full weeks (leading/trailing blanks included) so bars line up cleanly row by row
+  const weeks = useMemo(() => {
+    const firstDow = new Date(y, m, 1).getDay();
+    const daysInMonth = new Date(y, m+1, 0).getDate();
+    const totalCells = firstDow + daysInMonth;
+    const trailing = (7 - (totalCells % 7)) % 7;
+    const cellsFull = [];
+    for(let i=0;i<firstDow;i++) cellsFull.push(null);
+    for(let d=1; d<=daysInMonth; d++) cellsFull.push(d);
+    for(let i=0;i<trailing;i++) cellsFull.push(null);
+    const out = [];
+    for(let i=0;i<cellsFull.length;i+=7) out.push(cellsFull.slice(i,i+7));
+    return out;
+  }, [y, m]);
+
+  function dateStrFor(day){ return day ? `${y}-${pad(m+1)}-${pad(day)}` : null; }
 
   function schedulesOn(day){
     if(!day) return [];
-    const dateStr = `${y}-${pad(m+1)}-${pad(day)}`;
-    return filtered.filter(sc => sc.date === dateStr);
+    const dateStr = dateStrFor(day);
+    return filtered.filter(sc => { const {start,end} = scheduleRange(sc); return dateStr>=start && dateStr<=end; });
+  }
+
+  // for a given week (array of 7 day-numbers or null), compute lane-assigned bar segments
+  function weekSegments(weekDays){
+    const dateStrs = weekDays.map(dateStrFor);
+    const knownDates = dateStrs.filter(Boolean);
+    if(knownDates.length===0) return [];
+    const weekStart = knownDates[0], weekEnd = knownDates[knownDates.length-1];
+    const relevant = filtered.filter(sc => { const {start,end} = scheduleRange(sc); return start<=weekEnd && end>=weekStart; });
+    const sorted = [...relevant].sort((a,b) => {
+      const ra = scheduleRange(a), rb = scheduleRange(b);
+      return ra.start.localeCompare(rb.start) || rb.end.localeCompare(ra.end);
+    });
+    const lanes = []; // lanes[i] = array of {startCol,endCol}
+    const segments = [];
+    sorted.forEach(sc => {
+      const { start, end } = scheduleRange(sc);
+      let startCol = null, endCol = null;
+      dateStrs.forEach((d, idx) => {
+        if(d && d>=start && d<=end){ if(startCol===null) startCol=idx; endCol=idx; }
+      });
+      if(startCol===null) return;
+      let lane = 0;
+      while(lanes[lane] && lanes[lane].some(seg => !(endCol < seg.startCol || startCol > seg.endCol))) lane++;
+      if(!lanes[lane]) lanes[lane] = [];
+      lanes[lane].push({ startCol, endCol });
+      segments.push({
+        sc, startCol, endCol, lane,
+        isTrueStart: dateStrs[startCol] === start,
+        isTrueEnd: dateStrs[endCol] === end,
+      });
+    });
+    return segments;
   }
 
   function changeMonth(delta){
@@ -747,18 +843,18 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   }
 
   const todayFull = todayStr();
-  const selectedDateStr = selectedDay ? `${y}-${pad(m+1)}-${pad(selectedDay)}` : null;
+  const selectedDateStr = selectedDay ? dateStrFor(selectedDay) : null;
 
-  // agenda view: every schedule across all time (respecting the site filter), grouped by year-month
+  // agenda view: every schedule across all time (respecting the site filter), grouped by start month
   const agendaGroups = useMemo(() => {
-    const sorted = [...filtered].sort((a,b) => a.date.localeCompare(b.date));
+    const sorted = [...filtered].sort((a,b) => scheduleRange(a).start.localeCompare(scheduleRange(b).start));
     const groups = {};
     sorted.forEach(sc => {
-      const key = sc.date.slice(0,7); // YYYY-MM
+      const key = scheduleRange(sc).start.slice(0,7); // YYYY-MM
       if(!groups[key]) groups[key] = [];
       groups[key].push(sc);
     });
-    return Object.entries(groups); // [[ "2026-07", [...] ], ...]
+    return Object.entries(groups);
   }, [filtered]);
 
   return (
@@ -792,40 +888,47 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
       {view==="month" ? (
         <>
           <div className="card">
-            <div className="cal-grid">
+            <div className="cal-dow-row">
               {DOW.map(d => <div className="cal-dow" key={d}>{d}</div>)}
-              {cells.map((day, idx) => {
-                const daySchedules = schedulesOn(day);
-                const dateStr = day ? `${y}-${pad(m+1)}-${pad(day)}` : null;
-                return (
-                  <div
-                    key={idx}
-                    className={"cal-cell" + (!day ? " empty-cell" : "") + (dateStr===todayFull ? " today" : "")}
-                    onClick={()=> day && setSelectedDay(day)}
-                    style={selectedDay===day && day ? {borderColor:"var(--navy)", boxShadow:"inset 0 0 0 1.5px var(--navy)"} : {}}
-                  >
-                    {day && <>
-                      <span className="cal-date">{day}</span>
-                      <div className="cal-dots-row">
-                        {daySchedules.slice(0,10).map(sc => {
-                          const trade = tradeById[sc.tradeId];
-                          const site = siteById[sc.siteId];
-                          return (
-                            <span
-                              key={sc.id}
-                              className="cal-dot-mini"
-                              title={`${trade?.name || ""} · ${site?.name || ""}`}
-                              style={{background: trade?.color || "#999"}}
-                            />
-                          );
-                        })}
-                        {daySchedules.length>10 && <span className="cal-more">+{daySchedules.length-10}</span>}
-                      </div>
-                    </>}
-                  </div>
-                );
-              })}
             </div>
+            {weeks.map((weekDays, wi) => {
+              const segments = weekSegments(weekDays);
+              const laneCount = Math.max(1, ...segments.map(s=>s.lane+1));
+              return (
+                <div className="week-row" key={wi}>
+                  <div className="cal-grid">
+                    {weekDays.map((day, di) => {
+                      const dateStr = dateStrFor(day);
+                      return (
+                        <div
+                          key={di}
+                          className={"cal-cell" + (!day ? " empty-cell" : "") + (dateStr===todayFull ? " today" : "") + (selectedDay===day && day ? " picked" : "")}
+                          onClick={()=> day && setSelectedDay(day)}
+                        >
+                          {day && <span className="cal-date">{day}</span>}
+                          {day && Array.from({length: laneCount}).map((_, lane) => {
+                            const seg = segments.find(s => s.lane===lane && di>=s.startCol && di<=s.endCol);
+                            if(!seg) return <div className="gantt-bar empty" key={lane} />;
+                            const trade = tradeById[seg.sc.tradeId];
+                            const showLabel = di===seg.startCol;
+                            return (
+                              <div
+                                key={lane}
+                                className={"gantt-bar" + (seg.isTrueStart ? " round-l" : "") + (seg.isTrueEnd ? " round-r" : "")}
+                                style={{background: trade?.color || "#999"}}
+                                title={`${trade?.name || ""} · ${siteById[seg.sc.siteId]?.name || ""} (${scheduleRange(seg.sc).start} ~ ${scheduleRange(seg.sc).end})`}
+                              >
+                                {showLabel && <span className="gantt-label">{trade?.name}</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
 
             <div className="cal-legend">
               {trades.map(t => (
@@ -838,7 +941,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
             <div className="daypanel">
               <p className="eyebrow">{selectedDateStr}</p>
               {schedulesOn(selectedDay).length===0 ? (
-                <div className="empty">이 날짜에 등록된 일정이 없습니다.</div>
+                <div className="empty">이 날짜에 진행 중인 공사가 없습니다.</div>
               ) : (
                 schedulesOn(selectedDay).map(sc => (
                   <ScheduleRow key={sc.id} sc={sc} trade={tradeById[sc.tradeId]} site={siteById[sc.siteId]} onDelete={()=>setSchedules(prev=>prev.filter(s=>s.id!==sc.id))} />
@@ -850,7 +953,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
       ) : (
         <div className="card">
           {agendaGroups.length===0 ? (
-            <div className="empty">등록된 일정이 없습니다. 현장관리 탭에서 공사별 일정을 추가해보세요.</div>
+            <div className="empty">등록된 일정이 없습니다. 현장관리 탭에서 공사별 기간을 추가해보세요.</div>
           ) : (
             agendaGroups.map(([monthKey, items]) => (
               <div className="agenda-group" key={monthKey}>
@@ -859,8 +962,10 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                   const trade = tradeById[sc.tradeId];
                   const site = siteById[sc.siteId];
                   const contact = trade?.contacts.find(c=>c.id===sc.contactId);
-                  const d = new Date(sc.date + "T00:00:00");
-                  const isPast = sc.date < todayFull;
+                  const { start, end } = scheduleRange(sc);
+                  const d = new Date(start + "T00:00:00");
+                  const isPast = end < todayFull;
+                  const span = daySpan(sc);
                   return (
                     <div className={"agenda-item" + (isPast ? " past" : "")} key={sc.id}>
                       <span className="agenda-swatch" style={{background: trade?.color}} />
@@ -871,7 +976,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                       <div className="agenda-body">
                         <div className="agenda-title">{trade?.name} · {site?.name}</div>
                         <div className="agenda-sub">
-                          담당자: {contact?.name || "미지정"} {contact?.phone && `· ${contact.phone}`} {sc.memo && `· ${sc.memo}`}
+                          {start}{end!==start && ` ~ ${end}`} ({span}일) · 담당자: {contact?.name || "미지정"} {contact?.phone && `· ${contact.phone}`} {sc.memo && `· ${sc.memo}`}
                         </div>
                       </div>
                       <button className="btn btn-danger btn-sm" onClick={()=>setSchedules(prev=>prev.filter(s=>s.id!==sc.id))}>삭제</button>
@@ -889,13 +994,15 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
 
 function ScheduleRow({ sc, trade, site, onDelete }){
   const contact = trade?.contacts.find(c=>c.id===sc.contactId);
+  const { start, end } = scheduleRange(sc);
+  const span = daySpan(sc);
   return (
     <div className="day-sched">
       <span className="swatch-bar" style={{background: trade?.color}} />
       <div style={{flex:1}}>
         <div style={{fontWeight:800, fontSize:14}}>{trade?.name} · {site?.name}</div>
         <div style={{fontSize:13, color:"var(--ink-soft)"}}>
-          담당자: {contact?.name || "미지정"} {contact?.phone && `· ${contact.phone}`}
+          {start}{end!==start && ` ~ ${end}`} ({span}일) · 담당자: {contact?.name || "미지정"} {contact?.phone && `· ${contact.phone}`}
         </div>
         {sc.memo && <div style={{fontSize:12.5, color:"var(--ink-soft)", marginTop:2}}>메모: {sc.memo}</div>}
       </div>
