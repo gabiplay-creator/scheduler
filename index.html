@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>공정표 — 인테리어 공사 스케줄러</title>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  :root{
+    --navy-deep:#16233F;
+    --navy:#1E3A5F;
+    --steel:#3D6690;
+    --steel-light:#7C9CB8;
+    --paper:#F5F2EA;
+    --paper-line:#E1D9C4;
+    --card:#FFFFFF;
+    --ink:#23262B;
+    --ink-soft:#5B5F66;
+    --accent:#E2792F;
+    --accent-soft:#F6D9BE;
+    --green:#4A7C59;
+    --danger:#B23A48;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--sans);}
+  body{
+    background-image:
+      linear-gradient(var(--paper-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--paper-line) 1px, transparent 1px);
+    background-size: 28px 28px;
+    background-attachment: fixed;
+    min-height:100vh;
+  }
+  button{font-family:var(--sans);cursor:pointer;}
+  input,select,textarea{font-family:var(--sans);}
+
+  .app{max-width:1080px;margin:0 auto;padding:0 20px 80px;}
+
+  /* header */
+  .header{
+    background:var(--navy-deep);
+    color:#fff;
+    margin:0 -20px 0;
+    padding:28px 20px 0;
+  }
+  .header-inner{max-width:1080px;margin:0 auto;}
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.18em;
+    color:var(--accent);
+    text-transform:uppercase;
+    margin:0 0 6px;
+  }
+  .title{
+    font-size:28px;
+    font-weight:800;
+    margin:0 0 4px;
+    letter-spacing:-.01em;
+  }
+  .subtitle{color:var(--steel-light);font-size:13px;margin:0 0 18px;}
+  .ruler{
+    height:22px;
+    display:flex;
+    align-items:flex-end;
+    gap:0;
+    overflow:hidden;
+    border-top:1px solid rgba(255,255,255,.15);
+  }
+  .ruler span{
+    flex:1;
+    border-left:1px solid rgba(255,255,255,.25);
+    height:8px;
+  }
+  .ruler span:nth-child(5n+1){height:14px;border-left:1px solid rgba(255,255,255,.4);}
+
+  .tabs{display:flex;gap:4px;margin-top:16px;}
+  .tab{
+    background:transparent;border:none;
+    color:var(--steel-light);
+    font-size:14px;font-weight:700;
+    padding:10px 16px;border-radius:8px 8px 0 0;
+    border-bottom:3px solid transparent;
+  }
+  .tab.active{color:#fff;border-bottom:3px solid var(--accent);background:rgba(255,255,255,0.06);}
+  .tab:hover{color:#fff;}
+
+  .content{padding-top:24px;}
+
+  .section-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+  .section-head h2{font-size:19px;margin:0 0 2px;}
+  .section-head .eyebrow{color:var(--steel);}
+
+  .btn{
+    border:none;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:700;
+    display:inline-flex;align-items:center;gap:6px;
+  }
+  .btn-primary{background:var(--navy-deep);color:#fff;}
+  .btn-primary:hover{background:var(--navy);}
+  .btn-accent{background:var(--accent);color:#fff;}
+  .btn-accent:hover{background:#c9661f;}
+  .btn-ghost{background:transparent;color:var(--ink-soft);border:1px solid var(--paper-line);}
+  .btn-ghost:hover{border-color:var(--steel);color:var(--navy);}
+  .btn-danger{background:transparent;color:var(--danger);border:1px solid #e3c2c6;}
+  .btn-danger:hover{background:#fbeff0;}
+  .btn-sm{padding:6px 10px;font-size:12px;border-radius:6px;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+
+  /* cards */
+  .card{
+    background:var(--card);
+    border:1px solid var(--paper-line);
+    border-radius:12px;
+    padding:18px;
+    box-shadow:0 1px 2px rgba(20,20,20,0.03);
+  }
+  .grid-sites{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
+  .site-card{position:relative;}
+  .site-card .corner{
+    position:absolute;top:0;right:0;width:0;height:0;
+    border-style:solid;border-width:0 18px 18px 0;
+    border-color:transparent var(--accent-soft) transparent transparent;
+    border-radius:0 12px 0 0;
+  }
+  .site-name{font-size:16px;font-weight:800;margin:0 0 2px;}
+  .site-addr{font-size:13px;color:var(--ink-soft);margin:0 0 12px;display:flex;gap:6px;align-items:flex-start;}
+  .tag-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
+  .tag{
+    font-family:var(--mono);font-size:11px;letter-spacing:.03em;
+    background:var(--paper);border:1px dashed var(--paper-line);color:var(--ink-soft);
+    padding:3px 8px;border-radius:5px;display:inline-flex;align-items:center;gap:4px;
+  }
+  .tag.ok{color:var(--green);border-color:#bcd8c4;background:#eef6f0;}
+  .site-actions{display:flex;gap:6px;flex-wrap:wrap;}
+
+  .empty{
+    border:1.5px dashed var(--paper-line);border-radius:12px;padding:36px 20px;text-align:center;color:var(--ink-soft);
+  }
+  .empty b{color:var(--ink);}
+
+  /* modal */
+  .overlay{
+    position:fixed;inset:0;background:rgba(22,35,63,.45);
+    display:flex;align-items:flex-start;justify-content:center;
+    padding:40px 16px;overflow-y:auto;z-index:50;
+  }
+  .modal{
+    background:var(--card);border-radius:14px;max-width:640px;width:100%;
+    padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.25);
+  }
+  .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+  .modal-head h3{margin:0;font-size:18px;}
+  .close-x{background:none;border:none;color:var(--ink-soft);font-size:18px;padding:4px;border-radius:6px;}
+  .close-x:hover{background:var(--paper);}
+
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:5px;letter-spacing:.02em;}
+  .field input[type=text],.field input[type=date],.field textarea,.field select{
+    width:100%;padding:9px 11px;border:1px solid var(--paper-line);border-radius:8px;font-size:14px;background:var(--paper);
+  }
+  .field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--steel);outline-offset:1px;}
+  .field textarea{resize:vertical;min-height:56px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .file-drop{
+    border:1.5px dashed var(--paper-line);border-radius:8px;padding:12px;
+    display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-soft);background:var(--paper);
+  }
+  .file-drop input{display:none;}
+  .file-drop label{cursor:pointer;background:var(--navy-deep);color:#fff;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:700;flex-shrink:0;}
+  .file-thumb{width:44px;height:44px;border-radius:6px;object-fit:cover;border:1px solid var(--paper-line);flex-shrink:0;}
+  .modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+
+  /* trades / contacts */
+  .trade-list{display:flex;flex-direction:column;gap:10px;}
+  .trade-row{
+    display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--paper-line);border-radius:10px;background:var(--card);
+  }
+  .trade-swatch{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
+  .trade-info{flex:1;min-width:0;}
+  .trade-name{font-weight:800;font-size:14px;}
+  .trade-note{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .sched-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+  .chip{
+    font-size:11.5px;background:var(--paper);border:1px solid var(--paper-line);border-radius:6px;padding:4px 8px;
+    display:inline-flex;align-items:center;gap:6px;
+  }
+  .chip .x{cursor:pointer;color:var(--ink-soft);font-weight:700;}
+  .chip .x:hover{color:var(--danger);}
+
+  /* contacts tab */
+  .contact-card{margin-bottom:12px;}
+  .contact-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .contact-head .trade-swatch{width:12px;height:12px;}
+  .contact-head h4{margin:0;font-size:15px;}
+  .contact-note{font-size:12px;color:var(--ink-soft);margin:0 0 10px;font-style:italic;}
+  .contact-item{
+    display:grid;grid-template-columns:1.2fr 1fr 0.7fr 1.1fr auto;gap:8px;align-items:center;
+    padding:8px 0;border-top:1px solid var(--paper-line);font-size:13px;
+  }
+  .contact-item:first-of-type{border-top:none;}
+  .contact-item input{padding:6px 8px;border:1px solid var(--paper-line);border-radius:6px;font-size:13px;width:100%;background:var(--paper);}
+  .default-badge{font-family:var(--mono);font-size:10px;background:var(--accent-soft);color:#8a4213;padding:2px 6px;border-radius:4px;letter-spacing:.03em;}
+
+  /* calendar */
+  .cal-nav{display:flex;align-items:center;gap:10px;}
+  .cal-nav button{background:var(--card);border:1px solid var(--paper-line);border-radius:8px;width:32px;height:32px;font-size:15px;}
+  .cal-month{font-size:16px;font-weight:800;font-family:var(--mono);min-width:110px;text-align:center;}
+  .cal-filter select{padding:8px 10px;border-radius:8px;border:1px solid var(--paper-line);font-size:13px;background:var(--card);}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:14px;}
+  .cal-dow{font-family:var(--mono);font-size:11px;color:var(--ink-soft);text-align:center;padding-bottom:4px;letter-spacing:.05em;}
+  .cal-cell{
+    background:var(--card);border:1px solid var(--paper-line);border-radius:8px;min-height:86px;padding:6px;
+    display:flex;flex-direction:column;gap:3px;cursor:pointer;
+  }
+  .cal-cell.empty-cell{background:transparent;border:none;cursor:default;}
+  .cal-cell.today{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);}
+  .cal-cell:hover:not(.empty-cell){border-color:var(--steel);}
+  .cal-date{font-family:var(--mono);font-size:11px;color:var(--ink-soft);}
+  .cal-dot{
+    font-size:10px;padding:2px 5px;border-radius:4px;color:#fff;font-weight:700;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .cal-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;}
+  .legend-item{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-soft);}
+  .legend-dot{width:9px;height:9px;border-radius:3px;}
+
+  .daypanel{margin-top:16px;}
+  .day-sched{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--paper-line);border-radius:10px;margin-bottom:8px;}
+  .day-sched .swatch-bar{width:4px;border-radius:3px;align-self:stretch;}
+
+  .footer-note{margin-top:40px;font-size:12px;color:var(--ink-soft);text-align:center;font-family:var(--mono);}
+
+  @media (max-width:640px){
+    .row2{grid-template-columns:1fr;}
+    .contact-item{grid-template-columns:1fr;gap:4px;}
+    .tabs{overflow-x:auto;}
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo, useRef } = React;
+
+/* ---------- data ---------- */
+const DEFAULT_TRADES = [
+  { id:"demolition", name:"철거", color:"#B23A48",
+    contacts:[{id:"c-demolition-1", name:"손정수", phone:"5622-1031", bank:"기업", account:"181-088341-02-013", isDefault:true}],
+    note:"철거 가능 여부 문의 후 등본 통해 진행" },
+  { id:"sash", name:"샷시", color:"#2F6690",
+    contacts:[{id:"c-sash-1", name:"노영수(대리님)", phone:"7243-6283", bank:"카드결제", account:"", isDefault:true}],
+    note:"도면/주소 주고 실측 약속 잡고, 계약 이후 시공일 잡으면 됨" },
+  { id:"carpentry", name:"목공", color:"#8B5E34",
+    contacts:[{id:"c-carpentry-1", name:"강동혁", phone:"", bank:"신한", account:"110-593-427718", isDefault:true}],
+    note:"도면/주소 주고, 시공내역 주면서, 며칠 걸릴지 물어서 잡으면 됨" },
+  { id:"tile", name:"타일", color:"#3E7C6B",
+    contacts:[{id:"c-tile-1", name:"최환석", phone:"4664-8678", bank:"국민", account:"839-2020-4084-824", isDefault:true}],
+    note:"도면/주소 주고, 시공내역 주면서, 며칠 걸릴지 물어서 잡으면 됨" },
+  { id:"ceramic", name:"도기", color:"#6B5B95",
+    contacts:[{id:"c-ceramic-1", name:"장호준", phone:"7190-7777", bank:"기업", account:"010-6413-6628", isDefault:true}],
+    note:"도면/주소 주고, 시공내역 주면서, 날짜 잡음" },
+  { id:"electric", name:"전기", color:"#C98A17",
+    contacts:[{id:"c-electric-1", name:"이대희", phone:"9481-0907", bank:"농협", account:"302-9481-0907-11", isDefault:true}],
+    note:"주소 주고 날짜 잡음" },
+  { id:"furniture", name:"가구", color:"#A0522D",
+    contacts:[{id:"c-furniture-1", name:"박호성", phone:"6295-2575", bank:"", account:"", isDefault:true}],
+    note:"주소 주고, 철거 후 실측하고(손님과), 시공일 잡음" },
+  { id:"wallpaper", name:"도배", color:"#C97064",
+    contacts:[{id:"c-wallpaper-1", name:"양여사님", phone:"9193-8481", bank:"신한", account:"969 04 098890", isDefault:true}],
+    note:"주소/도면/날짜 주면 알아서 맞춰오심. 자재량 여쭤보고 주문" },
+  { id:"wallpaper-supply", name:"도배지", color:"#D4A373",
+    contacts:[{id:"c-wallpaper-supply-1", name:"하임상사", phone:"", bank:"", account:"", isDefault:true}],
+    note:"도배 전날로 도착하도록 주문" },
+  { id:"flooring", name:"마루", color:"#7A5C3E",
+    contacts:[{id:"c-flooring-1", name:"대진동화(이사님)", phone:"3765-6993", bank:"국민우리데코", account:"164537-04-004100", isDefault:true}],
+    note:"도배 전날로 도착하도록 주문" },
+  { id:"door", name:"중문", color:"#4A6C6F",
+    contacts:[{id:"c-door-1", name:"김현철(차장님)", phone:"6541-8110", bank:"기업태성밀리", account:"306-124748-04-010", isDefault:true}],
+    note:"해당 양식대로 주면서, 날짜 잡음" },
+  { id:"paint", name:"도장", color:"#E2792F",
+    contacts:[{id:"c-paint-1", name:"박수혁", phone:"2264-7734", bank:"국민", account:"269902-04-224410", isDefault:true}],
+    note:"도면/주소 주고, 시공내역 주면서, 날짜 잡음" },
+  { id:"film", name:"필름", color:"#5B7DB1",
+    contacts:[{id:"c-film-1", name:"필름반장님", phone:"5851-8749", bank:"", account:"", isDefault:true}],
+    note:"시공내역 사진으로 견적 후 필요 날짜 잡음 (주말도 가능)" },
+  { id:"movein-clean", name:"입주청소", color:"#4A7C59",
+    contacts:[{id:"c-movein-clean-1", name:"김강민", phone:"5489-8001", bank:"우리", account:"1002-9304-04398", isDefault:true}],
+    note:"주소(평형) 주고 날짜 잡음" },
+];
+
+const DOW = ["일","월","화","수","목","금","토"];
+const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+const pad = n => String(n).padStart(2,"0");
+const todayStr = () => { const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+
+function loadLS(key, fallback){
+  try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+  catch(e){ return fallback; }
+}
+function saveLS(key, value){
+  try{ localStorage.setItem(key, JSON.stringify(value)); }
+  catch(e){ console.error("저장 실패 (용량 초과일 수 있어요):", e); alert("저장에 실패했습니다. 업로드한 이미지 용량이 너무 크지 않은지 확인해주세요."); }
+}
+function fileToDataUrl(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ---------- root ---------- */
+function App(){
+  const [tab, setTab] = useState("sites");
+  const [trades, setTrades] = useState(() => loadLS("scheduler:trades", DEFAULT_TRADES));
+  const [sites, setSites] = useState(() => loadLS("scheduler:sites", []));
+  const [schedules, setSchedules] = useState(() => loadLS("scheduler:schedules", []));
+
+  useEffect(() => saveLS("scheduler:trades", trades), [trades]);
+  useEffect(() => saveLS("scheduler:sites", sites), [sites]);
+  useEffect(() => saveLS("scheduler:schedules", schedules), [schedules]);
+
+  const rulerTicks = Array.from({length: 40});
+
+  return (
+    <div className="app">
+      <div className="header">
+        <div className="header-inner">
+          <p className="eyebrow">PROJECT SCHEDULE / 도면 기준</p>
+          <h1 className="title">공정표</h1>
+          <p className="subtitle">현장 · 공사 담당자 · 캘린더를 한곳에서 관리합니다</p>
+          <div className="tabs">
+            <button className={"tab" + (tab==="sites"?" active":"")} onClick={()=>setTab("sites")}>현장관리</button>
+            <button className={"tab" + (tab==="calendar"?" active":"")} onClick={()=>setTab("calendar")}>공사캘린더</button>
+            <button className={"tab" + (tab==="contacts"?" active":"")} onClick={()=>setTab("contacts")}>담당자관리</button>
+          </div>
+        </div>
+        <div className="ruler">{rulerTicks.map((_,i)=><span key={i}/>)}</div>
+      </div>
+
+      <div className="content">
+        {tab==="sites" && (
+          <SitesTab sites={sites} setSites={setSites} trades={trades} schedules={schedules} setSchedules={setSchedules} />
+        )}
+        {tab==="calendar" && (
+          <CalendarTab sites={sites} trades={trades} schedules={schedules} setSchedules={setSchedules} />
+        )}
+        {tab==="contacts" && (
+          <ContactsTab trades={trades} setTrades={setTrades} />
+        )}
+      </div>
+
+      <p className="footer-note">DATA IS STORED LOCALLY IN THIS BROWSER — 이 브라우저에만 저장됩니다</p>
+    </div>
+  );
+}
+
+/* ---------- Sites tab ---------- */
+function SitesTab({ sites, setSites, trades, schedules, setSchedules }){
+  const [showAdd, setShowAdd] = useState(false);
+  const [detailSiteId, setDetailSiteId] = useState(null);
+  const [viewFile, setViewFile] = useState(null); // {name, dataUrl, isImage}
+
+  const detailSite = sites.find(s => s.id === detailSiteId);
+
+  function addSite(site){
+    setSites(prev => [...prev, { ...site, id: uid(), createdAt: Date.now() }]);
+    setShowAdd(false);
+  }
+  function updateSite(id, patch){
+    setSites(prev => prev.map(s => s.id===id ? {...s, ...patch} : s));
+  }
+  function deleteSite(id){
+    if(!confirm("이 현장을 삭제하면 관련 일정도 함께 삭제됩니다. 계속할까요?")) return;
+    setSites(prev => prev.filter(s => s.id!==id));
+    setSchedules(prev => prev.filter(sc => sc.siteId!==id));
+    if(detailSiteId===id) setDetailSiteId(null);
+  }
+
+  return (
+    <div>
+      <div className="section-head">
+        <div>
+          <p className="eyebrow">SITES</p>
+          <h2>공사 현장</h2>
+        </div>
+        <button className="btn btn-accent" onClick={()=>setShowAdd(true)}>+ 새 현장 추가</button>
+      </div>
+
+      {sites.length===0 ? (
+        <div className="empty"><b>등록된 현장이 없습니다.</b><br/>“새 현장 추가”를 눌러 주소와 도면을 등록해보세요.</div>
+      ) : (
+        <div className="grid-sites">
+          {sites.map(site => (
+            <div className="card site-card" key={site.id}>
+              <div className="corner" />
+              <p className="site-name">{site.name}</p>
+              <p className="site-addr">📍 {site.address || "주소 미등록"}</p>
+              <div className="tag-row">
+                <span className={"tag" + (site.floorPlan ? " ok":"")}>{site.floorPlan ? "도면 등록됨" : "도면 없음"}</span>
+                <span className={"tag" + (site.estimate ? " ok":"")}>{site.estimate ? "견적서 등록됨" : "견적서 없음"}</span>
+                <span className="tag">{schedules.filter(sc=>sc.siteId===site.id).length}건 일정</span>
+              </div>
+              <div className="site-actions">
+                <button className="btn btn-ghost btn-sm" onClick={()=>setDetailSiteId(site.id)}>일정 관리</button>
+                {site.floorPlan && <button className="btn btn-ghost btn-sm" onClick={()=>setViewFile(site.floorPlan)}>도면 보기</button>}
+                {site.estimate && <button className="btn btn-ghost btn-sm" onClick={()=>setViewFile(site.estimate)}>견적서 보기</button>}
+                <button className="btn btn-danger btn-sm" onClick={()=>deleteSite(site.id)}>삭제</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showAdd && <SiteFormModal onClose={()=>setShowAdd(false)} onSave={addSite} />}
+      {detailSite && (
+        <SiteDetailModal
+          site={detailSite}
+          trades={trades}
+          schedules={schedules.filter(sc=>sc.siteId===detailSite.id)}
+          onClose={()=>setDetailSiteId(null)}
+          onUpdateSite={patch=>updateSite(detailSite.id, patch)}
+          onAddSchedule={sc=>setSchedules(prev=>[...prev, {...sc, id: uid(), siteId: detailSite.id}])}
+          onDeleteSchedule={id=>setSchedules(prev=>prev.filter(s=>s.id!==id))}
+          onViewFile={setViewFile}
+        />
+      )}
+      {viewFile && <FileViewerModal file={viewFile} onClose={()=>setViewFile(null)} />}
+    </div>
+  );
+}
+
+function SiteFormModal({ onClose, onSave, initial }){
+  const [name, setName] = useState(initial?.name || "");
+  const [address, setAddress] = useState(initial?.address || "");
+  const [memo, setMemo] = useState(initial?.memo || "");
+  const [floorPlan, setFloorPlan] = useState(initial?.floorPlan || null);
+  const [estimate, setEstimate] = useState(initial?.estimate || null);
+
+  async function handleFile(e, setter){
+    const file = e.target.files[0];
+    if(!file) return;
+    if(file.size > 4*1024*1024){
+      alert("파일이 너무 큽니다 (4MB 이하 권장). 이미지를 압축해서 다시 시도해주세요.");
+      return;
+    }
+    const dataUrl = await fileToDataUrl(file);
+    setter({ name: file.name, dataUrl, isImage: file.type.startsWith("image/") });
+  }
+
+  function submit(){
+    if(!name.trim() || !address.trim()){ alert("현장명과 주소는 필수입니다."); return; }
+    onSave({ name: name.trim(), address: address.trim(), memo: memo.trim(), floorPlan, estimate });
+  }
+
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-head">
+          <h3>{initial ? "현장 정보 수정" : "새 현장 추가"}</h3>
+          <button className="close-x" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="field">
+          <label>현장명</label>
+          <input type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="예: 서울숲 리버뷰 24평" />
+        </div>
+        <div className="field">
+          <label>주소</label>
+          <input type="text" value={address} onChange={e=>setAddress(e.target.value)} placeholder="지번 또는 도로명 주소" />
+        </div>
+
+        <div className="row2">
+          <div className="field">
+            <label>도면 업로드</label>
+            <div className="file-drop">
+              {floorPlan?.isImage && <img className="file-thumb" src={floorPlan.dataUrl} />}
+              <span style={{flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{floorPlan?.name || "파일 없음"}</span>
+              <label>업로드<input type="file" accept="image/*,.pdf" onChange={e=>handleFile(e, setFloorPlan)} /></label>
+            </div>
+          </div>
+          <div className="field">
+            <label>견적서 업로드</label>
+            <div className="file-drop">
+              {estimate?.isImage && <img className="file-thumb" src={estimate.dataUrl} />}
+              <span style={{flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{estimate?.name || "파일 없음"}</span>
+              <label>업로드<input type="file" accept="image/*,.pdf" onChange={e=>handleFile(e, setEstimate)} /></label>
+            </div>
+          </div>
+        </div>
+
+        <div className="field">
+          <label>메모</label>
+          <textarea value={memo} onChange={e=>setMemo(e.target.value)} placeholder="특이사항, 관리사무소 연락처 등" />
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>취소</button>
+          <button className="btn btn-primary" onClick={submit}>저장</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SiteDetailModal({ site, trades, schedules, onClose, onUpdateSite, onAddSchedule, onDeleteSchedule, onViewFile }){
+  const [editing, setEditing] = useState(false);
+  const [addingTradeId, setAddingTradeId] = useState(null);
+
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
+      <div className="modal" style={{maxWidth:720}}>
+        <div className="modal-head">
+          <div>
+            <p className="eyebrow">SITE DETAIL</p>
+            <h3>{site.name}</h3>
+          </div>
+          <button className="close-x" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="tag-row" style={{marginBottom:14}}>
+          <span className="tag">📍 {site.address}</span>
+          {site.floorPlan && <span className="tag ok" style={{cursor:"pointer"}} onClick={()=>onViewFile(site.floorPlan)}>도면 보기</span>}
+          {site.estimate && <span className="tag ok" style={{cursor:"pointer"}} onClick={()=>onViewFile(site.estimate)}>견적서 보기</span>}
+          <button className="btn btn-ghost btn-sm" onClick={()=>setEditing(true)}>현장정보 수정</button>
+        </div>
+
+        <p className="eyebrow" style={{marginBottom:8}}>TRADES / 공사별 일정</p>
+        <div className="trade-list">
+          {trades.map(trade => {
+            const tradeSchedules = schedules.filter(s => s.tradeId===trade.id);
+            return (
+              <div className="trade-row" key={trade.id} style={{flexDirection:"column", alignItems:"stretch"}}>
+                <div style={{display:"flex", alignItems:"center", gap:12}}>
+                  <span className="trade-swatch" style={{background:trade.color}} />
+                  <div className="trade-info">
+                    <div className="trade-name">{trade.name}</div>
+                    {tradeSchedules.length===0 && <div className="trade-note">{trade.note}</div>}
+                  </div>
+                  <button className="btn btn-ghost btn-sm" onClick={()=>setAddingTradeId(addingTradeId===trade.id ? null : trade.id)}>
+                    + 일정 추가
+                  </button>
+                </div>
+
+                {tradeSchedules.length>0 && (
+                  <div className="sched-chips">
+                    {tradeSchedules.map(sc => {
+                      const contact = trade.contacts.find(c=>c.id===sc.contactId);
+                      return (
+                        <span className="chip" key={sc.id}>
+                          📅 {sc.date} · {contact?.name || "담당자 미지정"} {sc.memo && `· ${sc.memo}`}
+                          <span className="x" onClick={()=>onDeleteSchedule(sc.id)}>✕</span>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {addingTradeId===trade.id && (
+                  <AddScheduleInline
+                    trade={trade}
+                    onCancel={()=>setAddingTradeId(null)}
+                    onAdd={sc=>{ onAddSchedule({...sc, tradeId: trade.id}); setAddingTradeId(null); }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>닫기</button>
+        </div>
+      </div>
+      {editing && (
+        <SiteFormModal
+          initial={site}
+          onClose={()=>setEditing(false)}
+          onSave={patch=>{ onUpdateSite(patch); setEditing(false); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddScheduleInline({ trade, onCancel, onAdd }){
+  const [date, setDate] = useState(todayStr());
+  const [contactId, setContactId] = useState(trade.contacts[0]?.id || "");
+  const [memo, setMemo] = useState("");
+
+  return (
+    <div className="row2" style={{marginTop:8, background:"var(--paper)", padding:10, borderRadius:8}}>
+      <div className="field" style={{marginBottom:0}}>
+        <label>날짜</label>
+        <input type="date" value={date} onChange={e=>setDate(e.target.value)} />
+      </div>
+      <div className="field" style={{marginBottom:0}}>
+        <label>담당자</label>
+        <select value={contactId} onChange={e=>setContactId(e.target.value)}>
+          {trade.contacts.map(c => <option value={c.id} key={c.id}>{c.name}{c.isDefault ? " (기본)" : ""}</option>)}
+        </select>
+      </div>
+      <div className="field" style={{gridColumn:"1 / -1", marginBottom:0}}>
+        <label>메모</label>
+        <input type="text" value={memo} onChange={e=>setMemo(e.target.value)} placeholder="예: 실측 약속, 오전 시공 등" />
+      </div>
+      <div style={{gridColumn:"1 / -1", display:"flex", justifyContent:"flex-end", gap:8, marginTop:4}}>
+        <button className="btn btn-ghost btn-sm" onClick={onCancel}>취소</button>
+        <button className="btn btn-primary btn-sm" onClick={()=>onAdd({date, contactId, memo})}>추가</button>
+      </div>
+    </div>
+  );
+}
+
+function FileViewerModal({ file, onClose }){
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
+      <div className="modal" style={{maxWidth:800}}>
+        <div className="modal-head">
+          <h3>{file.name}</h3>
+          <button className="close-x" onClick={onClose}>✕</button>
+        </div>
+        {file.isImage ? (
+          <img src={file.dataUrl} style={{width:"100%", borderRadius:8}} />
+        ) : (
+          <embed src={file.dataUrl} type="application/pdf" style={{width:"100%", height:"70vh", borderRadius:8}} />
+        )}
+        <div className="modal-footer">
+          <a className="btn btn-primary" href={file.dataUrl} download={file.name}>다운로드</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Calendar tab ---------- */
+function CalendarTab({ sites, trades, schedules, setSchedules }){
+  const [cursor, setCursor] = useState(() => { const d = new Date(); return {y: d.getFullYear(), m: d.getMonth()}; });
+  const [siteFilter, setSiteFilter] = useState("all");
+  const [selectedDay, setSelectedDay] = useState(null);
+
+  const tradeById = useMemo(() => Object.fromEntries(trades.map(t=>[t.id,t])), [trades]);
+  const siteById = useMemo(() => Object.fromEntries(sites.map(s=>[s.id,s])), [sites]);
+
+  const filtered = schedules.filter(sc => siteFilter==="all" || sc.siteId===siteFilter);
+
+  const { y, m } = cursor;
+  const firstDow = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const cells = [];
+  for(let i=0;i<firstDow;i++) cells.push(null);
+  for(let d=1; d<=daysInMonth; d++) cells.push(d);
+
+  function schedulesOn(day){
+    if(!day) return [];
+    const dateStr = `${y}-${pad(m+1)}-${pad(day)}`;
+    return filtered.filter(sc => sc.date === dateStr);
+  }
+
+  function changeMonth(delta){
+    let nm = m + delta, ny = y;
+    if(nm<0){ nm=11; ny--; } if(nm>11){ nm=0; ny++; }
+    setCursor({y:ny, m:nm});
+    setSelectedDay(null);
+  }
+
+  const todayFull = todayStr();
+  const selectedDateStr = selectedDay ? `${y}-${pad(m+1)}-${pad(selectedDay)}` : null;
+
+  return (
+    <div>
+      <div className="section-head">
+        <div>
+          <p className="eyebrow">SCHEDULE OVERVIEW</p>
+          <h2>공사 캘린더</h2>
+        </div>
+        <div style={{display:"flex", gap:10, alignItems:"center"}}>
+          <div className="cal-filter">
+            <select value={siteFilter} onChange={e=>{setSiteFilter(e.target.value); setSelectedDay(null);}}>
+              <option value="all">전체 현장</option>
+              {sites.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          <div className="cal-nav">
+            <button onClick={()=>changeMonth(-1)}>‹</button>
+            <span className="cal-month">{y}. {pad(m+1)}</span>
+            <button onClick={()=>changeMonth(1)}>›</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <div className="cal-grid">
+          {DOW.map(d => <div className="cal-dow" key={d}>{d}</div>)}
+          {cells.map((day, idx) => {
+            const daySchedules = schedulesOn(day);
+            const dateStr = day ? `${y}-${pad(m+1)}-${pad(day)}` : null;
+            return (
+              <div
+                key={idx}
+                className={"cal-cell" + (!day ? " empty-cell" : "") + (dateStr===todayFull ? " today" : "")}
+                onClick={()=> day && setSelectedDay(day)}
+                style={selectedDay===day && day ? {borderColor:"var(--navy)", boxShadow:"inset 0 0 0 1.5px var(--navy)"} : {}}
+              >
+                {day && <>
+                  <span className="cal-date">{day}</span>
+                  {daySchedules.slice(0,3).map(sc => {
+                    const trade = tradeById[sc.tradeId];
+                    return <span className="cal-dot" key={sc.id} style={{background: trade?.color || "#999"}}>{trade?.name}</span>;
+                  })}
+                  {daySchedules.length>3 && <span className="cal-dot" style={{background:"var(--ink-soft)"}}>+{daySchedules.length-3}</span>}
+                </>}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="cal-legend">
+          {trades.map(t => (
+            <span className="legend-item" key={t.id}><span className="legend-dot" style={{background:t.color}} />{t.name}</span>
+          ))}
+        </div>
+      </div>
+
+      {selectedDay && (
+        <div className="daypanel">
+          <p className="eyebrow">{selectedDateStr}</p>
+          {schedulesOn(selectedDay).length===0 ? (
+            <div className="empty">이 날짜에 등록된 일정이 없습니다.</div>
+          ) : (
+            schedulesOn(selectedDay).map(sc => {
+              const trade = tradeById[sc.tradeId];
+              const site = siteById[sc.siteId];
+              const contact = trade?.contacts.find(c=>c.id===sc.contactId);
+              return (
+                <div className="day-sched" key={sc.id}>
+                  <span className="swatch-bar" style={{background: trade?.color}} />
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:800, fontSize:14}}>{trade?.name} · {site?.name}</div>
+                    <div style={{fontSize:13, color:"var(--ink-soft)"}}>
+                      담당자: {contact?.name || "미지정"} {contact?.phone && `· ${contact.phone}`}
+                    </div>
+                    {sc.memo && <div style={{fontSize:12.5, color:"var(--ink-soft)", marginTop:2}}>메모: {sc.memo}</div>}
+                  </div>
+                  <button className="btn btn-danger btn-sm" onClick={()=>setSchedules(prev=>prev.filter(s=>s.id!==sc.id))}>삭제</button>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Contacts tab ---------- */
+function ContactsTab({ trades, setTrades }){
+  function updateContact(tradeId, contactId, patch){
+    setTrades(prev => prev.map(t => t.id!==tradeId ? t : {
+      ...t, contacts: t.contacts.map(c => c.id===contactId ? {...c, ...patch} : c)
+    }));
+  }
+  function addContact(tradeId){
+    setTrades(prev => prev.map(t => t.id!==tradeId ? t : {
+      ...t, contacts: [...t.contacts, {id: uid(), name:"", phone:"", bank:"", account:"", isDefault:false}]
+    }));
+  }
+  function deleteContact(tradeId, contactId){
+    setTrades(prev => prev.map(t => {
+      if(t.id!==tradeId) return t;
+      if(t.contacts.length<=1){ alert("최소 1명의 담당자는 유지해야 합니다."); return t; }
+      return {...t, contacts: t.contacts.filter(c=>c.id!==contactId)};
+    }));
+  }
+  function makeDefault(tradeId, contactId){
+    setTrades(prev => prev.map(t => t.id!==tradeId ? t : {
+      ...t, contacts: t.contacts.map(c => ({...c, isDefault: c.id===contactId}))
+    }));
+  }
+
+  return (
+    <div>
+      <div className="section-head">
+        <div>
+          <p className="eyebrow">CONTACTS</p>
+          <h2>공사별 담당자</h2>
+        </div>
+      </div>
+
+      {trades.map(trade => (
+        <div className="card contact-card" key={trade.id}>
+          <div className="contact-head">
+            <span className="trade-swatch" style={{background:trade.color}} />
+            <h4>{trade.name}</h4>
+          </div>
+          <p className="contact-note">{trade.note}</p>
+
+          {trade.contacts.map(c => (
+            <div className="contact-item" key={c.id}>
+              <input type="text" value={c.name} placeholder="이름" onChange={e=>updateContact(trade.id, c.id, {name:e.target.value})} />
+              <input type="text" value={c.phone} placeholder="전화번호" onChange={e=>updateContact(trade.id, c.id, {phone:e.target.value})} />
+              <input type="text" value={c.bank} placeholder="은행" onChange={e=>updateContact(trade.id, c.id, {bank:e.target.value})} />
+              <input type="text" value={c.account} placeholder="계좌번호" onChange={e=>updateContact(trade.id, c.id, {account:e.target.value})} />
+              <div style={{display:"flex", gap:6, alignItems:"center", justifyContent:"flex-end"}}>
+                {c.isDefault ? <span className="default-badge">기본</span> : (
+                  <button className="btn btn-ghost btn-sm" onClick={()=>makeDefault(trade.id, c.id)}>기본으로</button>
+                )}
+                <button className="btn btn-danger btn-sm" onClick={()=>deleteContact(trade.id, c.id)}>✕</button>
+              </div>
+            </div>
+          ))}
+
+          <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={()=>addContact(trade.id)}>+ 담당자 추가</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
