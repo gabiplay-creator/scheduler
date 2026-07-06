@@ -7,6 +7,7 @@
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     --navy-deep:#16233F;
@@ -172,6 +173,14 @@
   .file-drop input{display:none;}
   .file-drop label{cursor:pointer;background:var(--navy-deep);color:#fff;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:700;flex-shrink:0;}
   .file-thumb{width:44px;height:44px;border-radius:6px;object-fit:cover;border:1px solid var(--paper-line);flex-shrink:0;}
+  .file-badge{
+    width:44px;height:44px;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:.02em;color:#fff;
+  }
+  .excel-table-wrap{max-height:60vh;overflow:auto;border:1px solid var(--paper-line);border-radius:8px;}
+  .excel-table-wrap table{border-collapse:collapse;width:100%;font-size:12.5px;}
+  .excel-table-wrap td,.excel-table-wrap th{border:1px solid var(--paper-line);padding:5px 8px;white-space:nowrap;}
+  .excel-table-wrap tr:first-child td,.excel-table-wrap tr:first-child th{background:var(--paper);font-weight:700;}
   .modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
 
   /* trades / contacts */
@@ -206,6 +215,30 @@
   .default-badge{font-family:var(--mono);font-size:10px;background:var(--accent-soft);color:#8a4213;padding:2px 6px;border-radius:4px;letter-spacing:.03em;}
 
   /* calendar */
+  .view-toggle{display:flex;border:1px solid var(--paper-line);border-radius:8px;overflow:hidden;}
+  .view-toggle button{background:var(--card);border:none;padding:8px 14px;font-size:13px;font-weight:700;color:var(--ink-soft);}
+  .view-toggle button.active{background:var(--navy-deep);color:#fff;}
+  .view-toggle button:not(:last-child){border-right:1px solid var(--paper-line);}
+
+  .agenda-group{margin-bottom:18px;}
+  .agenda-month{
+    font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--steel);
+    text-transform:uppercase;margin:0 0 8px;padding-bottom:6px;border-bottom:1px dashed var(--paper-line);
+  }
+  .agenda-item{
+    display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--paper-line);border-radius:10px;margin-bottom:6px;background:var(--card);
+  }
+  .agenda-item.past{opacity:.55;}
+  .agenda-date{
+    font-family:var(--mono);font-size:12px;font-weight:800;color:var(--navy);background:var(--paper);
+    border-radius:6px;padding:6px 8px;text-align:center;min-width:52px;line-height:1.15;flex-shrink:0;
+  }
+  .agenda-date .dow{display:block;font-size:9.5px;color:var(--ink-soft);font-weight:600;}
+  .agenda-swatch{width:4px;align-self:stretch;border-radius:3px;flex-shrink:0;}
+  .agenda-body{flex:1;min-width:0;}
+  .agenda-title{font-weight:800;font-size:13.5px;}
+  .agenda-sub{font-size:12px;color:var(--ink-soft);margin-top:1px;}
+
   .cal-nav{display:flex;align-items:center;gap:10px;}
   .cal-nav button{background:var(--card);border:1px solid var(--paper-line);border-radius:8px;width:32px;height:32px;font-size:15px;}
   .cal-month{font-size:16px;font-weight:800;font-family:var(--mono);min-width:110px;text-align:center;}
@@ -224,6 +257,9 @@
     font-size:10px;padding:2px 5px;border-radius:4px;color:#fff;font-weight:700;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
+  .cal-dots-row{display:flex;flex-wrap:wrap;gap:2px;margin-top:2px;}
+  .cal-dot-mini{width:8px;height:8px;border-radius:2px;flex-shrink:0;}
+  .cal-more{font-family:var(--mono);font-size:9px;color:var(--ink-soft);}
   .cal-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;}
   .legend-item{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-soft);}
   .legend-dot{width:9px;height:9px;border-radius:3px;}
@@ -313,6 +349,23 @@ function fileToDataUrl(file){
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+}
+function isSpreadsheetName(name=""){ return /\.(xlsx|xls|csv)$/i.test(name); }
+function isPdfName(name=""){ return /\.pdf$/i.test(name); }
+function extBadge(name=""){
+  const m = name.match(/\.([a-zA-Z0-9]+)$/);
+  return m ? m[1].toUpperCase().slice(0,4) : "FILE";
+}
+function excelDataUrlToHtml(dataUrl){
+  try{
+    const base64 = dataUrl.split(",")[1];
+    const wb = XLSX.read(base64, { type: "base64" });
+    const sheetName = wb.SheetNames[0];
+    return XLSX.utils.sheet_to_html(wb.Sheets[sheetName]);
+  }catch(e){
+    console.error(e);
+    return "<p>미리보기를 불러올 수 없습니다.</p>";
+  }
 }
 
 /* ---------- root ---------- */
@@ -446,12 +499,18 @@ function SiteFormModal({ onClose, onSave, initial }){
   async function handleFile(e, setter){
     const file = e.target.files[0];
     if(!file) return;
-    if(file.size > 4*1024*1024){
-      alert("파일이 너무 큽니다 (4MB 이하 권장). 이미지를 압축해서 다시 시도해주세요.");
+    if(file.size > 6*1024*1024){
+      alert("파일이 너무 큽니다 (6MB 이하 권장). 용량을 줄여서 다시 시도해주세요.");
       return;
     }
     const dataUrl = await fileToDataUrl(file);
-    setter({ name: file.name, dataUrl, isImage: file.type.startsWith("image/") });
+    setter({
+      name: file.name,
+      dataUrl,
+      isImage: file.type.startsWith("image/"),
+      isSpreadsheet: isSpreadsheetName(file.name),
+      isPdf: isPdfName(file.name) || file.type === "application/pdf",
+    });
   }
 
   function submit(){
@@ -480,17 +539,17 @@ function SiteFormModal({ onClose, onSave, initial }){
           <div className="field">
             <label>도면 업로드</label>
             <div className="file-drop">
-              {floorPlan?.isImage && <img className="file-thumb" src={floorPlan.dataUrl} />}
+              <FilePreviewThumb file={floorPlan} />
               <span style={{flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{floorPlan?.name || "파일 없음"}</span>
               <label>업로드<input type="file" accept="image/*,.pdf" onChange={e=>handleFile(e, setFloorPlan)} /></label>
             </div>
           </div>
           <div className="field">
-            <label>견적서 업로드</label>
+            <label>견적서 업로드 (이미지·PDF·엑셀 가능)</label>
             <div className="file-drop">
-              {estimate?.isImage && <img className="file-thumb" src={estimate.dataUrl} />}
+              <FilePreviewThumb file={estimate} />
               <span style={{flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{estimate?.name || "파일 없음"}</span>
-              <label>업로드<input type="file" accept="image/*,.pdf" onChange={e=>handleFile(e, setEstimate)} /></label>
+              <label>업로드<input type="file" accept="image/*,.pdf,.xlsx,.xls,.csv" onChange={e=>handleFile(e, setEstimate)} /></label>
             </div>
           </div>
         </div>
@@ -618,18 +677,34 @@ function AddScheduleInline({ trade, onCancel, onAdd }){
   );
 }
 
+function FilePreviewThumb({ file }){
+  if(!file) return null;
+  if(file.isImage) return <img className="file-thumb" src={file.dataUrl} />;
+  if(file.isSpreadsheet ?? isSpreadsheetName(file.name)) return <div className="file-badge" style={{background:"var(--green)"}}>{extBadge(file.name)}</div>;
+  if(file.isPdf ?? isPdfName(file.name)) return <div className="file-badge" style={{background:"var(--danger)"}}>PDF</div>;
+  return <div className="file-badge" style={{background:"var(--ink-soft)"}}>{extBadge(file.name)}</div>;
+}
+
 function FileViewerModal({ file, onClose }){
+  // fall back to name/mime sniffing for files saved before these flags existed
+  const isImage = !!file.isImage;
+  const isSpreadsheet = file.isSpreadsheet ?? isSpreadsheetName(file.name);
+  const isPdf = file.isPdf ?? (isPdfName(file.name) || (file.dataUrl || "").startsWith("data:application/pdf"));
+  const tableHtml = useMemo(() => isSpreadsheet ? excelDataUrlToHtml(file.dataUrl) : null, [file]);
   return (
     <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
-      <div className="modal" style={{maxWidth:800}}>
+      <div className="modal" style={{maxWidth: isSpreadsheet ? 900 : 800}}>
         <div className="modal-head">
           <h3>{file.name}</h3>
           <button className="close-x" onClick={onClose}>✕</button>
         </div>
-        {file.isImage ? (
-          <img src={file.dataUrl} style={{width:"100%", borderRadius:8}} />
-        ) : (
-          <embed src={file.dataUrl} type="application/pdf" style={{width:"100%", height:"70vh", borderRadius:8}} />
+        {isImage && <img src={file.dataUrl} style={{width:"100%", borderRadius:8}} />}
+        {isPdf && <embed src={file.dataUrl} type="application/pdf" style={{width:"100%", height:"70vh", borderRadius:8}} />}
+        {isSpreadsheet && (
+          <div className="excel-table-wrap" dangerouslySetInnerHTML={{__html: tableHtml}} />
+        )}
+        {!isImage && !isPdf && !isSpreadsheet && (
+          <p style={{color:"var(--ink-soft)", fontSize:13}}>이 파일 형식은 미리보기를 지원하지 않습니다. 다운로드해서 확인해주세요.</p>
         )}
         <div className="modal-footer">
           <a className="btn btn-primary" href={file.dataUrl} download={file.name}>다운로드</a>
@@ -641,6 +716,7 @@ function FileViewerModal({ file, onClose }){
 
 /* ---------- Calendar tab ---------- */
 function CalendarTab({ sites, trades, schedules, setSchedules }){
+  const [view, setView] = useState("month"); // "month" | "agenda"
   const [cursor, setCursor] = useState(() => { const d = new Date(); return {y: d.getFullYear(), m: d.getMonth()}; });
   const [siteFilter, setSiteFilter] = useState("all");
   const [selectedDay, setSelectedDay] = useState(null);
@@ -673,6 +749,18 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   const todayFull = todayStr();
   const selectedDateStr = selectedDay ? `${y}-${pad(m+1)}-${pad(selectedDay)}` : null;
 
+  // agenda view: every schedule across all time (respecting the site filter), grouped by year-month
+  const agendaGroups = useMemo(() => {
+    const sorted = [...filtered].sort((a,b) => a.date.localeCompare(b.date));
+    const groups = {};
+    sorted.forEach(sc => {
+      const key = sc.date.slice(0,7); // YYYY-MM
+      if(!groups[key]) groups[key] = [];
+      groups[key].push(sc);
+    });
+    return Object.entries(groups); // [[ "2026-07", [...] ], ...]
+  }, [filtered]);
+
   return (
     <div>
       <div className="section-head">
@@ -680,81 +768,138 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
           <p className="eyebrow">SCHEDULE OVERVIEW</p>
           <h2>공사 캘린더</h2>
         </div>
-        <div style={{display:"flex", gap:10, alignItems:"center"}}>
+        <div style={{display:"flex", gap:10, alignItems:"center", flexWrap:"wrap"}}>
+          <div className="view-toggle">
+            <button className={view==="month"?"active":""} onClick={()=>setView("month")}>달력형</button>
+            <button className={view==="agenda"?"active":""} onClick={()=>setView("agenda")}>전체 목록형</button>
+          </div>
           <div className="cal-filter">
             <select value={siteFilter} onChange={e=>{setSiteFilter(e.target.value); setSelectedDay(null);}}>
               <option value="all">전체 현장</option>
               {sites.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}
             </select>
           </div>
-          <div className="cal-nav">
-            <button onClick={()=>changeMonth(-1)}>‹</button>
-            <span className="cal-month">{y}. {pad(m+1)}</span>
-            <button onClick={()=>changeMonth(1)}>›</button>
-          </div>
+          {view==="month" && (
+            <div className="cal-nav">
+              <button onClick={()=>changeMonth(-1)}>‹</button>
+              <span className="cal-month">{y}. {pad(m+1)}</span>
+              <button onClick={()=>changeMonth(1)}>›</button>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="card">
-        <div className="cal-grid">
-          {DOW.map(d => <div className="cal-dow" key={d}>{d}</div>)}
-          {cells.map((day, idx) => {
-            const daySchedules = schedulesOn(day);
-            const dateStr = day ? `${y}-${pad(m+1)}-${pad(day)}` : null;
-            return (
-              <div
-                key={idx}
-                className={"cal-cell" + (!day ? " empty-cell" : "") + (dateStr===todayFull ? " today" : "")}
-                onClick={()=> day && setSelectedDay(day)}
-                style={selectedDay===day && day ? {borderColor:"var(--navy)", boxShadow:"inset 0 0 0 1.5px var(--navy)"} : {}}
-              >
-                {day && <>
-                  <span className="cal-date">{day}</span>
-                  {daySchedules.slice(0,3).map(sc => {
-                    const trade = tradeById[sc.tradeId];
-                    return <span className="cal-dot" key={sc.id} style={{background: trade?.color || "#999"}}>{trade?.name}</span>;
-                  })}
-                  {daySchedules.length>3 && <span className="cal-dot" style={{background:"var(--ink-soft)"}}>+{daySchedules.length-3}</span>}
-                </>}
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="cal-legend">
-          {trades.map(t => (
-            <span className="legend-item" key={t.id}><span className="legend-dot" style={{background:t.color}} />{t.name}</span>
-          ))}
-        </div>
-      </div>
-
-      {selectedDay && (
-        <div className="daypanel">
-          <p className="eyebrow">{selectedDateStr}</p>
-          {schedulesOn(selectedDay).length===0 ? (
-            <div className="empty">이 날짜에 등록된 일정이 없습니다.</div>
-          ) : (
-            schedulesOn(selectedDay).map(sc => {
-              const trade = tradeById[sc.tradeId];
-              const site = siteById[sc.siteId];
-              const contact = trade?.contacts.find(c=>c.id===sc.contactId);
-              return (
-                <div className="day-sched" key={sc.id}>
-                  <span className="swatch-bar" style={{background: trade?.color}} />
-                  <div style={{flex:1}}>
-                    <div style={{fontWeight:800, fontSize:14}}>{trade?.name} · {site?.name}</div>
-                    <div style={{fontSize:13, color:"var(--ink-soft)"}}>
-                      담당자: {contact?.name || "미지정"} {contact?.phone && `· ${contact.phone}`}
-                    </div>
-                    {sc.memo && <div style={{fontSize:12.5, color:"var(--ink-soft)", marginTop:2}}>메모: {sc.memo}</div>}
+      {view==="month" ? (
+        <>
+          <div className="card">
+            <div className="cal-grid">
+              {DOW.map(d => <div className="cal-dow" key={d}>{d}</div>)}
+              {cells.map((day, idx) => {
+                const daySchedules = schedulesOn(day);
+                const dateStr = day ? `${y}-${pad(m+1)}-${pad(day)}` : null;
+                return (
+                  <div
+                    key={idx}
+                    className={"cal-cell" + (!day ? " empty-cell" : "") + (dateStr===todayFull ? " today" : "")}
+                    onClick={()=> day && setSelectedDay(day)}
+                    style={selectedDay===day && day ? {borderColor:"var(--navy)", boxShadow:"inset 0 0 0 1.5px var(--navy)"} : {}}
+                  >
+                    {day && <>
+                      <span className="cal-date">{day}</span>
+                      <div className="cal-dots-row">
+                        {daySchedules.slice(0,10).map(sc => {
+                          const trade = tradeById[sc.tradeId];
+                          const site = siteById[sc.siteId];
+                          return (
+                            <span
+                              key={sc.id}
+                              className="cal-dot-mini"
+                              title={`${trade?.name || ""} · ${site?.name || ""}`}
+                              style={{background: trade?.color || "#999"}}
+                            />
+                          );
+                        })}
+                        {daySchedules.length>10 && <span className="cal-more">+{daySchedules.length-10}</span>}
+                      </div>
+                    </>}
                   </div>
-                  <button className="btn btn-danger btn-sm" onClick={()=>setSchedules(prev=>prev.filter(s=>s.id!==sc.id))}>삭제</button>
-                </div>
-              );
-            })
+                );
+              })}
+            </div>
+
+            <div className="cal-legend">
+              {trades.map(t => (
+                <span className="legend-item" key={t.id}><span className="legend-dot" style={{background:t.color}} />{t.name}</span>
+              ))}
+            </div>
+          </div>
+
+          {selectedDay && (
+            <div className="daypanel">
+              <p className="eyebrow">{selectedDateStr}</p>
+              {schedulesOn(selectedDay).length===0 ? (
+                <div className="empty">이 날짜에 등록된 일정이 없습니다.</div>
+              ) : (
+                schedulesOn(selectedDay).map(sc => (
+                  <ScheduleRow key={sc.id} sc={sc} trade={tradeById[sc.tradeId]} site={siteById[sc.siteId]} onDelete={()=>setSchedules(prev=>prev.filter(s=>s.id!==sc.id))} />
+                ))
+              )}
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="card">
+          {agendaGroups.length===0 ? (
+            <div className="empty">등록된 일정이 없습니다. 현장관리 탭에서 공사별 일정을 추가해보세요.</div>
+          ) : (
+            agendaGroups.map(([monthKey, items]) => (
+              <div className="agenda-group" key={monthKey}>
+                <p className="agenda-month">{monthKey.replace("-", "년 ")}월</p>
+                {items.map(sc => {
+                  const trade = tradeById[sc.tradeId];
+                  const site = siteById[sc.siteId];
+                  const contact = trade?.contacts.find(c=>c.id===sc.contactId);
+                  const d = new Date(sc.date + "T00:00:00");
+                  const isPast = sc.date < todayFull;
+                  return (
+                    <div className={"agenda-item" + (isPast ? " past" : "")} key={sc.id}>
+                      <span className="agenda-swatch" style={{background: trade?.color}} />
+                      <div className="agenda-date">
+                        {d.getDate()}
+                        <span className="dow">{DOW[d.getDay()]}</span>
+                      </div>
+                      <div className="agenda-body">
+                        <div className="agenda-title">{trade?.name} · {site?.name}</div>
+                        <div className="agenda-sub">
+                          담당자: {contact?.name || "미지정"} {contact?.phone && `· ${contact.phone}`} {sc.memo && `· ${sc.memo}`}
+                        </div>
+                      </div>
+                      <button className="btn btn-danger btn-sm" onClick={()=>setSchedules(prev=>prev.filter(s=>s.id!==sc.id))}>삭제</button>
+                    </div>
+                  );
+                })}
+              </div>
+            ))
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function ScheduleRow({ sc, trade, site, onDelete }){
+  const contact = trade?.contacts.find(c=>c.id===sc.contactId);
+  return (
+    <div className="day-sched">
+      <span className="swatch-bar" style={{background: trade?.color}} />
+      <div style={{flex:1}}>
+        <div style={{fontWeight:800, fontSize:14}}>{trade?.name} · {site?.name}</div>
+        <div style={{fontSize:13, color:"var(--ink-soft)"}}>
+          담당자: {contact?.name || "미지정"} {contact?.phone && `· ${contact.phone}`}
+        </div>
+        {sc.memo && <div style={{fontSize:12.5, color:"var(--ink-soft)", marginTop:2}}>메모: {sc.memo}</div>}
+      </div>
+      <button className="btn btn-danger btn-sm" onClick={onDelete}>삭제</button>
     </div>
   );
 }
