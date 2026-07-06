@@ -470,6 +470,9 @@ function SitesTab({ sites, setSites, trades, schedules, setSchedules }){
               <div className="corner" />
               <p className="site-name">{site.name}</p>
               <p className="site-addr">📍 {site.address || "주소 미등록"}</p>
+              {site.projectStart && site.projectEnd && (
+                <p className="site-addr">🗂 전체 공사: {site.projectStart} ~ {site.projectEnd} ({daySpan({startDate:site.projectStart, endDate:site.projectEnd})}일)</p>
+              )}
               {site.officePhone && <p className="site-addr">🏢 {site.officeName || "관리사무소"} · {site.officePhone}</p>}
               <div className="tag-row">
                 <span className={"tag" + (site.floorPlan ? " ok":"")}>{site.floorPlan ? "도면 등록됨" : "도면 없음"}</span>
@@ -514,6 +517,8 @@ function SiteFormModal({ onClose, onSave, initial }){
   const [estimate, setEstimate] = useState(initial?.estimate || null);
   const [officeName, setOfficeName] = useState(initial?.officeName || "");
   const [officePhone, setOfficePhone] = useState(initial?.officePhone || "");
+  const [projectStart, setProjectStart] = useState(initial?.projectStart || "");
+  const [projectEnd, setProjectEnd] = useState(initial?.projectEnd || "");
 
   async function handleFile(e, setter){
     const file = e.target.files[0];
@@ -534,9 +539,11 @@ function SiteFormModal({ onClose, onSave, initial }){
 
   function submit(){
     if(!name.trim() || !address.trim()){ alert("현장명과 주소는 필수입니다."); return; }
+    if(projectStart && projectEnd && projectEnd < projectStart){ alert("전체 공사 종료일이 시작일보다 빠를 수 없습니다."); return; }
     onSave({
       name: name.trim(), address: address.trim(), memo: memo.trim(), floorPlan, estimate,
       officeName: officeName.trim(), officePhone: officePhone.trim(),
+      projectStart, projectEnd,
     });
   }
 
@@ -555,6 +562,17 @@ function SiteFormModal({ onClose, onSave, initial }){
         <div className="field">
           <label>주소</label>
           <input type="text" value={address} onChange={e=>setAddress(e.target.value)} placeholder="지번 또는 도로명 주소" />
+        </div>
+
+        <div className="row2">
+          <div className="field">
+            <label>전체 공사 시작일</label>
+            <input type="date" value={projectStart} onChange={e=>setProjectStart(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>전체 공사 종료일</label>
+            <input type="date" value={projectEnd} min={projectStart || undefined} onChange={e=>setProjectEnd(e.target.value)} />
+          </div>
         </div>
 
         <div className="row2">
@@ -618,6 +636,9 @@ function SiteDetailModal({ site, trades, schedules, onClose, onUpdateSite, onAdd
 
         <div className="tag-row" style={{marginBottom:14}}>
           <span className="tag">📍 {site.address}</span>
+          {site.projectStart && site.projectEnd && (
+            <span className="tag ok">🗂 전체 공사 {site.projectStart} ~ {site.projectEnd}</span>
+          )}
           {site.officePhone && <span className="tag">🏢 {site.officeName || "관리사무소"} · {site.officePhone}</span>}
           {site.floorPlan && <span className="tag ok" style={{cursor:"pointer"}} onClick={()=>onViewFile(site.floorPlan)}>도면 보기</span>}
           {site.estimate && <span className="tag ok" style={{cursor:"pointer"}} onClick={()=>onViewFile(site.estimate)}>견적서 보기</span>}
@@ -803,16 +824,24 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   }
 
   // for a given week (array of 7 day-numbers or null), compute lane-assigned bar segments
+  const projectItems = useMemo(() => sites
+    .filter(s => (siteFilter==="all" || s.id===siteFilter) && s.projectStart && s.projectEnd)
+    .map(s => ({ id:"proj-"+s.id, isProject:true, siteId:s.id, tradeId:null, startDate:s.projectStart, endDate:s.projectEnd })),
+    [sites, siteFilter]);
+
   function weekSegments(weekDays){
     const dateStrs = weekDays.map(dateStrFor);
     const knownDates = dateStrs.filter(Boolean);
     if(knownDates.length===0) return [];
     const weekStart = knownDates[0], weekEnd = knownDates[knownDates.length-1];
-    const relevant = filtered.filter(sc => { const {start,end} = scheduleRange(sc); return start<=weekEnd && end>=weekStart; });
-    const sorted = [...relevant].sort((a,b) => {
+    const overlapsWeek = sc => { const {start,end} = scheduleRange(sc); return start<=weekEnd && end>=weekStart; };
+    const byStart = (a,b) => {
       const ra = scheduleRange(a), rb = scheduleRange(b);
       return ra.start.localeCompare(rb.start) || rb.end.localeCompare(ra.end);
-    });
+    };
+    const sortedProjects = projectItems.filter(overlapsWeek).sort(byStart);
+    const sortedTrades = filtered.filter(overlapsWeek).sort(byStart);
+    const sorted = [...sortedProjects, ...sortedTrades]; // project bars claim lanes first
     const lanes = []; // lanes[i] = array of {startCol,endCol}
     const segments = [];
     sorted.forEach(sc => {
@@ -847,7 +876,8 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
 
   // agenda view: every schedule across all time (respecting the site filter), grouped by start month
   const agendaGroups = useMemo(() => {
-    const sorted = [...filtered].sort((a,b) => scheduleRange(a).start.localeCompare(scheduleRange(b).start));
+    const combined = [...filtered, ...projectItems];
+    const sorted = combined.sort((a,b) => scheduleRange(a).start.localeCompare(scheduleRange(b).start));
     const groups = {};
     sorted.forEach(sc => {
       const key = scheduleRange(sc).start.slice(0,7); // YYYY-MM
@@ -855,7 +885,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
       groups[key].push(sc);
     });
     return Object.entries(groups);
-  }, [filtered]);
+  }, [filtered, projectItems]);
 
   return (
     <div>
@@ -909,16 +939,20 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                           {day && Array.from({length: laneCount}).map((_, lane) => {
                             const seg = segments.find(s => s.lane===lane && di>=s.startCol && di<=s.endCol);
                             if(!seg) return <div className="gantt-bar empty" key={lane} />;
-                            const trade = tradeById[seg.sc.tradeId];
+                            const isProject = seg.sc.isProject;
+                            const trade = isProject ? null : tradeById[seg.sc.tradeId];
+                            const site = siteById[seg.sc.siteId];
+                            const barColor = isProject ? "var(--navy-deep)" : (trade?.color || "#999");
+                            const label = isProject ? `${site?.name || ""} 전체공사` : trade?.name;
                             const showLabel = di===seg.startCol;
                             return (
                               <div
                                 key={lane}
-                                className={"gantt-bar" + (seg.isTrueStart ? " round-l" : "") + (seg.isTrueEnd ? " round-r" : "")}
-                                style={{background: trade?.color || "#999"}}
-                                title={`${trade?.name || ""} · ${siteById[seg.sc.siteId]?.name || ""} (${scheduleRange(seg.sc).start} ~ ${scheduleRange(seg.sc).end})`}
+                                className={"gantt-bar" + (seg.isTrueStart ? " round-l" : "") + (seg.isTrueEnd ? " round-r" : "") + (isProject ? " project" : "")}
+                                style={{background: barColor}}
+                                title={`${label || ""}${isProject ? "" : " · " + (site?.name || "")} (${scheduleRange(seg.sc).start} ~ ${scheduleRange(seg.sc).end})`}
                               >
-                                {showLabel && <span className="gantt-label">{trade?.name}</span>}
+                                {showLabel && <span className="gantt-label">{label}</span>}
                               </div>
                             );
                           })}
@@ -931,6 +965,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
             })}
 
             <div className="cal-legend">
+              <span className="legend-item"><span className="legend-dot" style={{background:"var(--navy-deep)"}} />전체 공사기간</span>
               {trades.map(t => (
                 <span className="legend-item" key={t.id}><span className="legend-dot" style={{background:t.color}} />{t.name}</span>
               ))}
@@ -940,6 +975,11 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
           {selectedDay && (
             <div className="daypanel">
               <p className="eyebrow">{selectedDateStr}</p>
+              {projectItems.filter(p => { const {start,end} = scheduleRange(p); return selectedDateStr>=start && selectedDateStr<=end; }).map(p => (
+                <div className="tag ok" key={p.id} style={{marginBottom:8, display:"inline-block"}}>
+                  🗂 {siteById[p.siteId]?.name} 전체 공사기간 진행 중
+                </div>
+              ))}
               {schedulesOn(selectedDay).length===0 ? (
                 <div className="empty">이 날짜에 진행 중인 공사가 없습니다.</div>
               ) : (
@@ -959,27 +999,29 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
               <div className="agenda-group" key={monthKey}>
                 <p className="agenda-month">{monthKey.replace("-", "년 ")}월</p>
                 {items.map(sc => {
-                  const trade = tradeById[sc.tradeId];
+                  const isProject = sc.isProject;
+                  const trade = isProject ? null : tradeById[sc.tradeId];
                   const site = siteById[sc.siteId];
-                  const contact = trade?.contacts.find(c=>c.id===sc.contactId);
+                  const contact = isProject ? null : trade?.contacts.find(c=>c.id===sc.contactId);
                   const { start, end } = scheduleRange(sc);
                   const d = new Date(start + "T00:00:00");
                   const isPast = end < todayFull;
                   const span = daySpan(sc);
                   return (
                     <div className={"agenda-item" + (isPast ? " past" : "")} key={sc.id}>
-                      <span className="agenda-swatch" style={{background: trade?.color}} />
+                      <span className="agenda-swatch" style={{background: isProject ? "var(--navy-deep)" : trade?.color}} />
                       <div className="agenda-date">
                         {d.getDate()}
                         <span className="dow">{DOW[d.getDay()]}</span>
                       </div>
                       <div className="agenda-body">
-                        <div className="agenda-title">{trade?.name} · {site?.name}</div>
+                        <div className="agenda-title">{isProject ? `🗂 ${site?.name} 전체 공사기간` : `${trade?.name} · ${site?.name}`}</div>
                         <div className="agenda-sub">
-                          {start}{end!==start && ` ~ ${end}`} ({span}일) · 담당자: {contact?.name || "미지정"} {contact?.phone && `· ${contact.phone}`} {sc.memo && `· ${sc.memo}`}
+                          {start}{end!==start && ` ~ ${end}`} ({span}일)
+                          {!isProject && <> · 담당자: {contact?.name || "미지정"} {contact?.phone && `· ${contact.phone}`} {sc.memo && `· ${sc.memo}`}</>}
                         </div>
                       </div>
-                      <button className="btn btn-danger btn-sm" onClick={()=>setSchedules(prev=>prev.filter(s=>s.id!==sc.id))}>삭제</button>
+                      {!isProject && <button className="btn btn-danger btn-sm" onClick={()=>setSchedules(prev=>prev.filter(s=>s.id!==sc.id))}>삭제</button>}
                     </div>
                   );
                 })}
