@@ -214,6 +214,13 @@
   .contact-item input{padding:6px 8px;border:1px solid var(--paper-line);border-radius:6px;font-size:13px;width:100%;background:var(--paper);}
   .default-badge{font-family:var(--mono);font-size:10px;background:var(--accent-soft);color:#8a4213;padding:2px 6px;border-radius:4px;letter-spacing:.03em;}
 
+  .vendor-item{
+    display:grid;grid-template-columns:1.1fr 0.9fr 1.4fr auto;gap:8px;align-items:center;
+    padding:10px 0;border-top:1px solid var(--paper-line);font-size:13px;
+  }
+  .vendor-item:first-of-type{border-top:none;}
+  .vendor-item input{padding:7px 9px;border:1px solid var(--paper-line);border-radius:6px;font-size:13px;width:100%;background:var(--paper);}
+
   /* calendar */
   .view-toggle{display:flex;border:1px solid var(--paper-line);border-radius:8px;overflow:hidden;}
   .view-toggle button{background:var(--card);border:none;padding:8px 14px;font-size:13px;font-weight:700;color:var(--ink-soft);}
@@ -335,6 +342,11 @@ const DEFAULT_TRADES = [
     note:"주소(평형) 주고 날짜 잡음" },
 ];
 
+const DEFAULT_VENDORS = [
+  { id:"v-1", name:"여기가 우리집(박과장)", phone:"010-6304-7584", memo:"" },
+  { id:"v-2", name:"한빛조명", phone:"010-6376-6293", memo:"" },
+];
+
 const DOW = ["일","월","화","수","목","금","토"];
 const uid = () => Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
 const pad = n => String(n).padStart(2,"0");
@@ -389,10 +401,12 @@ function App(){
   const [trades, setTrades] = useState(() => loadLS("scheduler:trades", DEFAULT_TRADES));
   const [sites, setSites] = useState(() => loadLS("scheduler:sites", []));
   const [schedules, setSchedules] = useState(() => loadLS("scheduler:schedules", []));
+  const [vendors, setVendors] = useState(() => loadLS("scheduler:vendors", DEFAULT_VENDORS));
 
   useEffect(() => saveLS("scheduler:trades", trades), [trades]);
   useEffect(() => saveLS("scheduler:sites", sites), [sites]);
   useEffect(() => saveLS("scheduler:schedules", schedules), [schedules]);
+  useEffect(() => saveLS("scheduler:vendors", vendors), [vendors]);
 
   const rulerTicks = Array.from({length: 40});
 
@@ -407,6 +421,7 @@ function App(){
             <button className={"tab" + (tab==="sites"?" active":"")} onClick={()=>setTab("sites")}>현장관리</button>
             <button className={"tab" + (tab==="calendar"?" active":"")} onClick={()=>setTab("calendar")}>공사캘린더</button>
             <button className={"tab" + (tab==="contacts"?" active":"")} onClick={()=>setTab("contacts")}>담당자관리</button>
+            <button className={"tab" + (tab==="vendors"?" active":"")} onClick={()=>setTab("vendors")}>거래처관리</button>
           </div>
         </div>
         <div className="ruler">{rulerTicks.map((_,i)=><span key={i}/>)}</div>
@@ -421,6 +436,9 @@ function App(){
         )}
         {tab==="contacts" && (
           <ContactsTab trades={trades} setTrades={setTrades} />
+        )}
+        {tab==="vendors" && (
+          <VendorsTab vendors={vendors} setVendors={setVendors} />
         )}
       </div>
 
@@ -1113,6 +1131,90 @@ function ContactsTab({ trades, setTrades }){
           <button className="btn btn-ghost btn-sm" style={{marginTop:10}} onClick={()=>addContact(trade.id)}>+ 담당자 추가</button>
         </div>
       ))}
+    </div>
+  );
+}
+
+/* ---------- Vendors tab (거래처관리) ---------- */
+function VendorsTab({ vendors, setVendors }){
+  const [showAdd, setShowAdd] = useState(false);
+
+  function addVendor(v){
+    setVendors(prev => [...prev, { ...v, id: uid() }]);
+    setShowAdd(false);
+  }
+  function updateVendor(id, patch){
+    setVendors(prev => prev.map(v => v.id===id ? {...v, ...patch} : v));
+  }
+  function deleteVendor(id){
+    if(!confirm("이 거래처 정보를 삭제할까요?")) return;
+    setVendors(prev => prev.filter(v => v.id!==id));
+  }
+
+  return (
+    <div>
+      <div className="section-head">
+        <div>
+          <p className="eyebrow">VENDORS</p>
+          <h2>거래처 / 업체 정보</h2>
+        </div>
+        <button className="btn btn-accent" onClick={()=>setShowAdd(true)}>+ 업체 추가</button>
+      </div>
+
+      {vendors.length===0 ? (
+        <div className="empty"><b>등록된 거래처가 없습니다.</b><br/>자재상, 조명, 기타 협력업체 등 공정에 속하지 않는 업체 정보를 등록해보세요.</div>
+      ) : (
+        <div className="card">
+          {vendors.map(v => (
+            <div className="vendor-item" key={v.id}>
+              <input type="text" value={v.name} placeholder="업체명" onChange={e=>updateVendor(v.id, {name:e.target.value})} />
+              <input type="text" value={v.phone} placeholder="전화번호" onChange={e=>updateVendor(v.id, {phone:e.target.value})} />
+              <input type="text" value={v.memo} placeholder="메모 (담당자, 품목 등)" onChange={e=>updateVendor(v.id, {memo:e.target.value})} />
+              <button className="btn btn-danger btn-sm" onClick={()=>deleteVendor(v.id)}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showAdd && <VendorFormModal onClose={()=>setShowAdd(false)} onSave={addVendor} />}
+    </div>
+  );
+}
+
+function VendorFormModal({ onClose, onSave }){
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [memo, setMemo] = useState("");
+
+  function submit(){
+    if(!name.trim()){ alert("업체명을 입력해주세요."); return; }
+    onSave({ name: name.trim(), phone: phone.trim(), memo: memo.trim() });
+  }
+
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-head">
+          <h3>거래처 추가</h3>
+          <button className="close-x" onClick={onClose}>✕</button>
+        </div>
+        <div className="field">
+          <label>업체명</label>
+          <input type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="예: 한빛조명" />
+        </div>
+        <div className="field">
+          <label>전화번호</label>
+          <input type="text" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="예: 010-1234-5678" />
+        </div>
+        <div className="field">
+          <label>메모</label>
+          <input type="text" value={memo} onChange={e=>setMemo(e.target.value)} placeholder="담당자, 취급 품목 등" />
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>취소</button>
+          <button className="btn btn-primary" onClick={submit}>저장</button>
+        </div>
+      </div>
     </div>
   );
 }
