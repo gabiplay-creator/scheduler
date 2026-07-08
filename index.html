@@ -866,49 +866,59 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
     .map(s => ({ id:"proj-"+s.id, isProject:true, siteId:s.id, tradeId:null, startDate:s.projectStart, endDate:s.projectEnd })),
     [sites, siteFilter]);
 
-  // a distinct color per site for the overall-project bar (stable regardless of filter)
+  // a distinct color per site for the overall-project header bar (stable regardless of filter)
   const siteColorMap = useMemo(() => Object.fromEntries(
     sites.map((s, i) => [s.id, PROJECT_COLOR_POOL[i % PROJECT_COLOR_POOL.length]])
   ), [sites]);
 
-  // fixed lane order, grouped by site: each site's overall-period row first, then that
-  // site's active trade rows underneath it — so "목공" under one site never gets mixed
-  // up with "목공" under another. Only rows relevant to the *visible month* are kept,
-  // so months with only one or two trades running don't leave huge empty gaps.
   const relevantSites = useMemo(() => sites.filter(s => siteFilter==="all" || s.id===siteFilter), [sites, siteFilter]);
 
-  const monthStart = `${y}-${pad(m+1)}-01`;
-  const monthEndStr = `${y}-${pad(m+1)}-${pad(new Date(y, m+1, 0).getDate())}`;
-  const overlapsMonth = sc => { const {start,end} = scheduleRange(sc); return start<=monthEndStr && end>=monthStart; };
-
-  const lanes = useMemo(() => {
-    const out = [];
-    relevantSites.forEach((site, si) => {
+  // display range for each site's header bar: its registered project period, or (if none
+  // was set) the span from its earliest to latest trade schedule
+  const siteRanges = useMemo(() => {
+    const map = {};
+    relevantSites.forEach(site => {
       const proj = projectItems.find(p => p.siteId===site.id);
-      const hasProject = proj && overlapsMonth(proj);
-      const siteTradeIds = trades
-        .filter(t => filtered.some(sc => sc.siteId===site.id && sc.tradeId===t.id && overlapsMonth(sc)))
-        .map(t => t.id);
-      if(!hasProject && siteTradeIds.length===0) return;
+      if(proj){ map[site.id] = scheduleRange(proj); return; }
+      const siteSchedules = filtered.filter(sc => sc.siteId===site.id);
+      if(siteSchedules.length===0){ map[site.id] = null; return; }
+      const ranges = siteSchedules.map(scheduleRange);
+      map[site.id] = {
+        start: ranges.reduce((a,r) => r.start<a ? r.start : a, ranges[0].start),
+        end: ranges.reduce((a,r) => r.end>a ? r.end : a, ranges[0].end),
+      };
+    });
+    return map;
+  }, [relevantSites, projectItems, filtered]);
+
+  // only the items actually happening on this specific day — no reserved empty rows for
+  // trades that aren't running that day. Grouped: site header bar, then that site's
+  // active trades for the day (each keeping its own original trade color), then the
+  // next site's group, etc.
+  function dayItems(dateStr){
+    if(!dateStr) return [];
+    const out = [];
+    relevantSites.forEach(site => {
+      const range = siteRanges[site.id];
+      const headerActive = range && dateStr>=range.start && dateStr<=range.end;
+      const siteTradesToday = trades
+        .map(t => {
+          const sc = filtered.find(s => s.siteId===site.id && s.tradeId===t.id && (() => {
+            const { start, end } = scheduleRange(s); return dateStr>=start && dateStr<=end;
+          })());
+          return sc ? { t, sc } : null;
+        })
+        .filter(Boolean);
+      if(!headerActive && siteTradesToday.length===0) return;
       const groupStartIdx = out.length;
-      if(hasProject) out.push({ type:"project", key:site.id, item:proj, color: siteColorMap[site.id] });
-      siteTradeIds.forEach(tid => out.push({ type:"trade", key:tid, siteId:site.id }));
-      if(out.length>groupStartIdx && groupStartIdx>0) out[groupStartIdx].groupStart = true;
+      if(headerActive) out.push({ kind:"header", site, start:range.start, end:range.end });
+      siteTradesToday.forEach(({ t, sc }) => {
+        const r = scheduleRange(sc);
+        out.push({ kind:"trade", site, trade:t, start:r.start, end:r.end });
+      });
+      if(out.length>groupStartIdx && groupStartIdx>0) out[groupStartIdx].groupGap = true;
     });
     return out;
-  }, [relevantSites, projectItems, trades, filtered, siteColorMap, monthStart, monthEndStr]);
-
-  function itemForLane(lane, dateStr){
-    if(!dateStr) return null;
-    if(lane.type==="project"){
-      const { start, end } = scheduleRange(lane.item);
-      return (dateStr>=start && dateStr<=end) ? lane.item : null;
-    }
-    return filtered.find(sc => {
-      if(sc.tradeId!==lane.key || sc.siteId!==lane.siteId) return false;
-      const { start, end } = scheduleRange(sc);
-      return dateStr>=start && dateStr<=end;
-    }) || null;
   }
 
   function changeMonth(delta){
@@ -982,26 +992,22 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                           onClick={()=> day && setSelectedDay(day)}
                         >
                           {day && <span className="cal-date">{day}</span>}
-                          {day && lanes.map((lane, laneIdx) => {
-                            const gapClass = lane.groupStart ? " lane-gap" : "";
-                            const it = itemForLane(lane, dateStr);
-                            if(!it) return <div className={"gantt-bar empty" + gapClass} key={laneIdx} />;
-                            const isProject = !!it.isProject;
-                            const trade = isProject ? null : tradeById[lane.key];
-                            const site = siteById[isProject ? lane.key : lane.siteId];
-                            const barColor = isProject ? (lane.color || "var(--navy-deep)") : (trade?.color || "#999");
-                            const label = isProject
-                              ? `${site?.name || ""} 전체공사`
-                              : (relevantSites.length>1 ? `${site?.name || ""} · ${trade?.name || ""}` : trade?.name);
-                            const { start, end } = scheduleRange(it);
-                            const prevItem = di>0 ? itemForLane(lane, dateStrs[di-1]) : null;
-                            const showLabel = !prevItem; // start of a visible run (true start, or continuing from a previous week)
+                          {day && dayItems(dateStr).map((item, idx) => {
+                            const gapClass = item.groupGap ? " lane-gap" : "";
+                            const prevDateStr = di>0 ? dateStrs[di-1] : null;
+                            const prevActive = prevDateStr && prevDateStr>=item.start && prevDateStr<=item.end;
+                            const showLabel = item.kind==="trade" || !prevActive; // trade labels repeat daily; header label only at the start of a visible run
+                            const barColor = item.kind==="header" ? siteColorMap[item.site.id] : item.trade.color;
+                            const label = item.kind==="header" ? item.site.name : item.trade.name;
+                            const titleText = item.kind==="header"
+                              ? `${item.site.name} 전체공사 (${item.start} ~ ${item.end})`
+                              : `${item.site.name} · ${item.trade.name} (${item.start} ~ ${item.end})`;
                             return (
                               <div
-                                key={laneIdx}
-                                className={"gantt-bar" + gapClass + (dateStr===start ? " round-l" : "") + (dateStr===end ? " round-r" : "") + (isProject ? " project" : "")}
+                                key={idx}
+                                className={"gantt-bar" + gapClass + (dateStr===item.start ? " round-l" : "") + (dateStr===item.end ? " round-r" : "") + (item.kind==="header" ? " project" : "")}
                                 style={{background: barColor}}
-                                title={`${label || ""} (${start} ~ ${end})`}
+                                title={titleText}
                               >
                                 {showLabel && <span className="gantt-label">{label}</span>}
                               </div>
