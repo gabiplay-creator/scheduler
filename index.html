@@ -264,13 +264,17 @@
   .cal-cell:hover:not(.empty-cell){border-color:var(--steel);}
   .cal-date{font-family:var(--mono);font-size:11px;color:var(--ink-soft);padding-left:2px;}
   .gantt-bar{
-    height:15px;border-radius:0;flex-shrink:0;display:flex;align-items:center;overflow:hidden;
+    height:15px;border-radius:0;flex-shrink:0;display:flex;align-items:center;overflow:hidden;box-sizing:border-box;
   }
   .gantt-bar.empty{background:transparent;}
   .gantt-bar.lane-gap{margin-top:5px;}
   .gantt-bar.round-l{border-radius:4px 0 0 4px;margin-left:1px;}
   .gantt-bar.round-r{border-radius:0 4px 4px 0;margin-right:1px;}
   .gantt-bar.round-l.round-r{border-radius:4px;margin-left:1px;margin-right:1px;}
+  .gantt-bar.project{
+    height:17px;border:1.5px solid var(--accent);box-shadow:0 1px 2px rgba(22,35,63,0.25);
+  }
+  .gantt-bar.project .gantt-label{font-weight:800;letter-spacing:.02em;}
   .gantt-label{
     font-size:9.5px;color:#fff;font-weight:700;padding-left:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
