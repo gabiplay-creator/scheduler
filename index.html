@@ -8,6 +8,8 @@
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --navy-deep:#16233F;
@@ -252,6 +254,13 @@
   .cal-filter select{padding:8px 10px;border-radius:8px;border:1px solid var(--paper-line);font-size:13px;background:var(--card);}
   .cal-dow-row{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:14px;}
   .cal-dow{font-family:var(--mono);font-size:11px;color:var(--ink-soft);text-align:center;padding-bottom:4px;letter-spacing:.05em;}
+  .cal-two-month{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start;}
+  .cal-month-card{padding:16px;}
+  .cal-month-title{font-family:var(--mono);font-size:14px;font-weight:800;color:var(--navy);margin:0 0 4px;}
+  .cal-legend-card{margin-top:14px;padding:14px 18px;}
+  @media (max-width:900px){
+    .cal-two-month{grid-template-columns:1fr;}
+  }
   .week-row{margin-bottom:4px;}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
   .cal-cell{
@@ -299,7 +308,103 @@
 <div id="root"></div>
 
 <script type="text/babel">
-const { useState, useEffect, useMemo, useRef } = React;
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+/* ================= REAL-TIME SHARED SYNC (Firebase Firestore) =================
+   To let multiple people view/edit this scheduler together with live updates:
+   1. Go to https://console.firebase.google.com → create a free project
+   2. In the project, open "Build → Firestore Database" → Create database
+      → start in test mode (or use the security rules note in the README)
+   3. Open Project settings (gear icon) → General → "Your apps" → add a Web app
+   4. Copy the firebaseConfig values it gives you into FIREBASE_CONFIG below
+   5. Save this file, commit, and push — every visitor will now share the same
+      live data instead of each browser having its own separate copy.
+   Until you fill this in, the app keeps working exactly as before (data saved
+   only in this browser's localStorage) — nothing breaks either way.
+================================================================================= */
+const FIREBASE_CONFIG = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID",
+};
+
+let _fbApp = null, _fbDb = null;
+function fbReady(){
+  if(_fbDb) return true;
+  if(typeof firebase === "undefined") return false;
+  if(!FIREBASE_CONFIG.apiKey || FIREBASE_CONFIG.apiKey.startsWith("YOUR_")) return false;
+  try{
+    _fbApp = firebase.initializeApp(FIREBASE_CONFIG);
+    _fbDb = firebase.firestore();
+    return true;
+  }catch(e){ console.error("Firebase init failed:", e); return false; }
+}
+function fbCollection(name){ return _fbDb.collection(name); }
+
+// Drop-in replacement for useState + localStorage persistence, but when Firebase is
+// configured it also keeps the data live-synced (in real time) across everyone using
+// the app: each record is its own Firestore document (by its `id`), so different
+// people editing different sites/trades/schedules at once don't clobber each other.
+function useSyncedState(collectionName, initialValue){
+  const [state, setStateRaw] = useState(() => loadLS("scheduler:"+collectionName, initialValue));
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  useEffect(() => {
+    if(!fbReady()) return;
+    let firstSnapshot = true;
+    const unsub = fbCollection(collectionName).onSnapshot(snap => {
+      if(firstSnapshot && snap.empty){
+        firstSnapshot = false;
+        const seed = (stateRef.current && stateRef.current.length) ? stateRef.current : initialValue;
+        if(seed && seed.length){
+          const batch = _fbDb.batch();
+          seed.forEach(item => batch.set(fbCollection(collectionName).doc(String(item.id)), item));
+          batch.commit().catch(err => console.error("initial seed failed:", err));
+        }
+        return; // the batch write above will trigger another snapshot with the real data
+      }
+      firstSnapshot = false;
+      const list = snap.docs.map(d => d.data());
+      setStateRaw(list);
+      saveLS("scheduler:"+collectionName, list);
+    }, err => console.error("sync error on", collectionName, err));
+    return () => unsub();
+  }, [collectionName]);
+
+  const setState = useCallback((updater) => {
+    setStateRaw(prev => {
+      const next = typeof updater==="function" ? updater(prev) : updater;
+      saveLS("scheduler:"+collectionName, next);
+      if(fbReady()){
+        const batch = _fbDb.batch();
+        let ops = 0;
+        const prevIds = new Set(prev.map(x=>x.id));
+        next.forEach(item => {
+          const prevItem = prev.find(p=>p.id===item.id);
+          if(!prevItem || JSON.stringify(prevItem)!==JSON.stringify(item)){
+            batch.set(fbCollection(collectionName).doc(String(item.id)), item);
+            ops++;
+          }
+        });
+        prev.forEach(item => {
+          if(!next.some(n=>n.id===item.id)){
+            batch.delete(fbCollection(collectionName).doc(String(item.id)));
+            ops++;
+          }
+        });
+        if(ops>0) batch.commit().catch(err => console.error("sync write failed:", err));
+      }
+      return next;
+    });
+  }, [collectionName]);
+
+  return [state, setState];
+}
+
 
 /* ---------- data ---------- */
 const DEFAULT_TRADES = [
@@ -418,19 +523,21 @@ function excelDataUrlToHtml(dataUrl){
 /* ---------- root ---------- */
 function App(){
   const [tab, setTab] = useState("sites");
-  const [trades, setTrades] = useState(() => {
-    const loaded = loadLS("scheduler:trades", DEFAULT_TRADES);
-    const missing = DEFAULT_TRADES.filter(dt => !loaded.some(t => t.id===dt.id));
-    return missing.length ? [...loaded, ...missing] : loaded;
-  });
-  const [sites, setSites] = useState(() => loadLS("scheduler:sites", []));
-  const [schedules, setSchedules] = useState(() => loadLS("scheduler:schedules", []));
-  const [vendors, setVendors] = useState(() => loadLS("scheduler:vendors", DEFAULT_VENDORS));
+  const [trades, setTrades] = useSyncedState("trades", DEFAULT_TRADES);
+  const [sites, setSites] = useSyncedState("sites", []);
+  const [schedules, setSchedules] = useSyncedState("schedules", []);
+  const [vendors, setVendors] = useSyncedState("vendors", DEFAULT_VENDORS);
+  const [synced, setSynced] = useState(false);
 
-  useEffect(() => saveLS("scheduler:trades", trades), [trades]);
-  useEffect(() => saveLS("scheduler:sites", sites), [sites]);
-  useEffect(() => saveLS("scheduler:schedules", schedules), [schedules]);
-  useEffect(() => saveLS("scheduler:vendors", vendors), [vendors]);
+  useEffect(() => { setSynced(fbReady()); }, []);
+
+  // if a new default trade category gets added to the app later (like "메지" was),
+  // make sure everyone's existing data picks it up automatically instead of only
+  // brand-new installs seeing it
+  useEffect(() => {
+    const missing = DEFAULT_TRADES.filter(dt => !trades.some(t => t.id===dt.id));
+    if(missing.length) setTrades(prev => [...prev, ...missing.filter(dt => !prev.some(t=>t.id===dt.id))]);
+  }, [trades]);
 
   const rulerTicks = Array.from({length: 40});
 
@@ -466,7 +573,9 @@ function App(){
         )}
       </div>
 
-      <p className="footer-note">DATA IS STORED LOCALLY IN THIS BROWSER — 이 브라우저에만 저장됩니다</p>
+      <p className="footer-note">
+        {synced ? "🟢 LIVE SYNC ON — 다른 사람의 수정이 실시간으로 반영됩니다" : "DATA IS STORED LOCALLY IN THIS BROWSER — 이 브라우저에만 저장됩니다 (실시간 공유를 켜려면 README 참고)"}
+      </p>
     </div>
   );
 }
@@ -565,8 +674,8 @@ function SiteFormModal({ onClose, onSave, initial }){
   async function handleFile(e, setter){
     const file = e.target.files[0];
     if(!file) return;
-    if(file.size > 6*1024*1024){
-      alert("파일이 너무 큽니다 (6MB 이하 권장). 용량을 줄여서 다시 시도해주세요.");
+    if(file.size > 650*1024){
+      alert("파일이 너무 큽니다 (650KB 이하 권장). 여러 사람과 실시간으로 공유되는 항목이라 용량 제한이 있어요. 이미지를 압축하거나 캡처본으로 올려주세요.");
       return;
     }
     const dataUrl = await fileToDataUrl(file);
@@ -833,17 +942,22 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   const [view, setView] = useState("month"); // "month" | "agenda"
   const [cursor, setCursor] = useState(() => { const d = new Date(); return {y: d.getFullYear(), m: d.getMonth()}; });
   const [siteFilter, setSiteFilter] = useState("all");
-  const [selectedDay, setSelectedDay] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(null); // full "YYYY-MM-DD" string, or null
 
   const tradeById = useMemo(() => Object.fromEntries(trades.map(t=>[t.id,t])), [trades]);
   const siteById = useMemo(() => Object.fromEntries(sites.map(s=>[s.id,s])), [sites]);
 
   const filtered = schedules.filter(sc => siteFilter==="all" || sc.siteId===siteFilter);
 
-  const { y, m } = cursor;
+  function addMonths({y, m}, delta){
+    let nm = m + delta, ny = y;
+    while(nm<0){ nm+=12; ny--; }
+    while(nm>11){ nm-=12; ny++; }
+    return { y: ny, m: nm };
+  }
 
   // build full weeks (leading/trailing blanks included) so bars line up cleanly row by row
-  const weeks = useMemo(() => {
+  function buildWeeks(y, m){
     const firstDow = new Date(y, m, 1).getDay();
     const daysInMonth = new Date(y, m+1, 0).getDate();
     const totalCells = firstDow + daysInMonth;
@@ -855,13 +969,12 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
     const out = [];
     for(let i=0;i<cellsFull.length;i+=7) out.push(cellsFull.slice(i,i+7));
     return out;
-  }, [y, m]);
+  }
 
-  function dateStrFor(day){ return day ? `${y}-${pad(m+1)}-${pad(day)}` : null; }
+  function dateStrFor(y, m, day){ return day ? `${y}-${pad(m+1)}-${pad(day)}` : null; }
 
-  function schedulesOn(day){
-    if(!day) return [];
-    const dateStr = dateStrFor(day);
+  function schedulesOn(dateStr){
+    if(!dateStr) return [];
     return filtered.filter(sc => { const {start,end} = scheduleRange(sc); return dateStr>=start && dateStr<=end; });
   }
 
@@ -926,14 +1039,11 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   }
 
   function changeMonth(delta){
-    let nm = m + delta, ny = y;
-    if(nm<0){ nm=11; ny--; } if(nm>11){ nm=0; ny++; }
-    setCursor({y:ny, m:nm});
-    setSelectedDay(null);
+    setCursor(prev => addMonths(prev, delta));
+    setSelectedDate(null);
   }
 
   const todayFull = todayStr();
-  const selectedDateStr = selectedDay ? dateStrFor(selectedDay) : null;
 
   // agenda view: every schedule across all time (respecting the site filter), grouped by start month
   const agendaGroups = useMemo(() => {
@@ -948,6 +1058,62 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
     return Object.entries(groups);
   }, [filtered, projectItems]);
 
+  // renders one month's dow-row + week grid (used twice, side by side)
+  function renderMonthCard(monthCursor){
+    const { y, m } = monthCursor;
+    const weeks = buildWeeks(y, m);
+    return (
+      <div className="card cal-month-card" key={`${y}-${m}`}>
+        <p className="cal-month-title">{y}. {pad(m+1)}</p>
+        <div className="cal-dow-row">
+          {DOW.map(d => <div className="cal-dow" key={d}>{d}</div>)}
+        </div>
+        {weeks.map((weekDays, wi) => {
+          const dateStrs = weekDays.map(day => dateStrFor(y, m, day));
+          return (
+            <div className="week-row" key={wi}>
+              <div className="cal-grid">
+                {weekDays.map((day, di) => {
+                  const dateStr = dateStrs[di];
+                  return (
+                    <div
+                      key={di}
+                      className={"cal-cell" + (!day ? " empty-cell" : "") + (dateStr===todayFull ? " today" : "") + (selectedDate===dateStr && day ? " picked" : "")}
+                      onClick={()=> day && setSelectedDate(dateStr)}
+                    >
+                      {day && <span className="cal-date">{day}</span>}
+                      {day && dayItems(dateStr).map((item, idx) => {
+                        const gapClass = item.groupGap ? " lane-gap" : "";
+                        const prevDateStr = di>0 ? dateStrs[di-1] : null;
+                        const prevActive = prevDateStr && prevDateStr>=item.start && prevDateStr<=item.end;
+                        const showLabel = item.kind==="trade" || !prevActive; // trade labels repeat daily; header label only at the start of a visible run
+                        const barColor = item.kind==="header" ? siteColorMap[item.site.id] : item.trade.color;
+                        const label = item.kind==="header" ? item.site.name : item.trade.name;
+                        const titleText = item.kind==="header"
+                          ? `${item.site.name} 전체공사 (${item.start} ~ ${item.end})`
+                          : `${item.site.name} · ${item.trade.name} (${item.start} ~ ${item.end})`;
+                        return (
+                          <div
+                            key={idx}
+                            className={"gantt-bar" + gapClass + (dateStr===item.start ? " round-l" : "") + (dateStr===item.end ? " round-r" : "") + (item.kind==="header" ? " project" : "")}
+                            style={{background: barColor}}
+                            title={titleText}
+                          >
+                            {showLabel && <span className="gantt-label">{label}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="section-head">
@@ -961,7 +1127,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
             <button className={view==="agenda"?"active":""} onClick={()=>setView("agenda")}>전체 목록형</button>
           </div>
           <div className="cal-filter">
-            <select value={siteFilter} onChange={e=>{setSiteFilter(e.target.value); setSelectedDay(null);}}>
+            <select value={siteFilter} onChange={e=>{setSiteFilter(e.target.value); setSelectedDate(null);}}>
               <option value="all">전체 현장</option>
               {sites.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}
             </select>
@@ -969,7 +1135,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
           {view==="month" && (
             <div className="cal-nav">
               <button onClick={()=>changeMonth(-1)}>‹</button>
-              <span className="cal-month">{y}. {pad(m+1)}</span>
+              <span className="cal-month">{cursor.y}.{pad(cursor.m+1)} - {addMonths(cursor,1).y}.{pad(addMonths(cursor,1).m+1)}</span>
               <button onClick={()=>changeMonth(1)}>›</button>
             </div>
           )}
@@ -978,53 +1144,12 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
 
       {view==="month" ? (
         <>
-          <div className="card">
-            <div className="cal-dow-row">
-              {DOW.map(d => <div className="cal-dow" key={d}>{d}</div>)}
-            </div>
-            {weeks.map((weekDays, wi) => {
-              const dateStrs = weekDays.map(dateStrFor);
-              return (
-                <div className="week-row" key={wi}>
-                  <div className="cal-grid">
-                    {weekDays.map((day, di) => {
-                      const dateStr = dateStrs[di];
-                      return (
-                        <div
-                          key={di}
-                          className={"cal-cell" + (!day ? " empty-cell" : "") + (dateStr===todayFull ? " today" : "") + (selectedDay===day && day ? " picked" : "")}
-                          onClick={()=> day && setSelectedDay(day)}
-                        >
-                          {day && <span className="cal-date">{day}</span>}
-                          {day && dayItems(dateStr).map((item, idx) => {
-                            const gapClass = item.groupGap ? " lane-gap" : "";
-                            const prevDateStr = di>0 ? dateStrs[di-1] : null;
-                            const prevActive = prevDateStr && prevDateStr>=item.start && prevDateStr<=item.end;
-                            const showLabel = item.kind==="trade" || !prevActive; // trade labels repeat daily; header label only at the start of a visible run
-                            const barColor = item.kind==="header" ? siteColorMap[item.site.id] : item.trade.color;
-                            const label = item.kind==="header" ? item.site.name : item.trade.name;
-                            const titleText = item.kind==="header"
-                              ? `${item.site.name} 전체공사 (${item.start} ~ ${item.end})`
-                              : `${item.site.name} · ${item.trade.name} (${item.start} ~ ${item.end})`;
-                            return (
-                              <div
-                                key={idx}
-                                className={"gantt-bar" + gapClass + (dateStr===item.start ? " round-l" : "") + (dateStr===item.end ? " round-r" : "") + (item.kind==="header" ? " project" : "")}
-                                style={{background: barColor}}
-                                title={titleText}
-                              >
-                                {showLabel && <span className="gantt-label">{label}</span>}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="cal-two-month">
+            {renderMonthCard(cursor)}
+            {renderMonthCard(addMonths(cursor, 1))}
+          </div>
 
+          <div className="card cal-legend-card">
             <div className="cal-legend">
               {projectItems.map(p => (
                 <span className="legend-item" key={p.id}>
@@ -1038,18 +1163,18 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
             </div>
           </div>
 
-          {selectedDay && (
+          {selectedDate && (
             <div className="daypanel">
-              <p className="eyebrow">{selectedDateStr}</p>
-              {projectItems.filter(p => { const {start,end} = scheduleRange(p); return selectedDateStr>=start && selectedDateStr<=end; }).map(p => (
+              <p className="eyebrow">{selectedDate}</p>
+              {projectItems.filter(p => { const {start,end} = scheduleRange(p); return selectedDate>=start && selectedDate<=end; }).map(p => (
                 <div className="tag ok" key={p.id} style={{marginBottom:8, display:"inline-block"}}>
                   🗂 {siteById[p.siteId]?.name} 전체 공사기간 진행 중
                 </div>
               ))}
-              {schedulesOn(selectedDay).length===0 ? (
+              {schedulesOn(selectedDate).length===0 ? (
                 <div className="empty">이 날짜에 진행 중인 공사가 없습니다.</div>
               ) : (
-                schedulesOn(selectedDay).map(sc => (
+                schedulesOn(selectedDate).map(sc => (
                   <ScheduleRow key={sc.id} sc={sc} trade={tradeById[sc.tradeId]} site={siteById[sc.siteId]} onDelete={()=>setSchedules(prev=>prev.filter(s=>s.id!==sc.id))} />
                 ))
               )}
