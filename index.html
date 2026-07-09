@@ -306,6 +306,8 @@
   .trade-slot{
     height:18px;min-height:18px;display:flex;align-items:center;overflow:hidden;
   }
+  .trade-slot-empty{cursor:pointer;border-radius:2px;}
+  .trade-slot-empty:hover{background:rgba(226,121,47,0.18);}
   .trade-day-chip{
     width:100%;height:14px;border-radius:2px;display:flex;align-items:center;padding:1px 5px;overflow:hidden;
     box-shadow:none;margin-bottom:4px;box-sizing:border-box;cursor:grab;
@@ -315,8 +317,9 @@
   .site-name-fill{
     font-size:9px;line-height:1.2;color:var(--ink);font-weight:800;letter-spacing:.01em;
     padding:3px 5px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
-    opacity:.75;
+    opacity:.75;cursor:pointer;border-radius:2px;
   }
+  .site-name-fill:hover{opacity:1;background:rgba(226,121,47,0.18);}
 
   .cal-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;}
   .legend-item{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-soft);}
@@ -960,6 +963,76 @@ function SiteDetailModal({ site, trades, schedules, onClose, onUpdateSite, onAdd
   );
 }
 
+function QuickAddScheduleModal({ site, trades, initialDate, onClose, onAdd }){
+  const [tradeId, setTradeId] = useState(trades[0]?.id || "");
+  const trade = trades.find(t => t.id===tradeId);
+  const [startDate, setStartDate] = useState(initialDate);
+  const [endDate, setEndDate] = useState(initialDate);
+  const [contactId, setContactId] = useState(trade?.contacts[0]?.id || "");
+  const [memo, setMemo] = useState("");
+
+  function handleTradeChange(id){
+    setTradeId(id);
+    const t = trades.find(x => x.id===id);
+    setContactId(t?.contacts[0]?.id || "");
+  }
+  function handleStartChange(v){
+    setStartDate(v);
+    if(endDate < v) setEndDate(v);
+  }
+  function submit(){
+    if(!tradeId){ alert("공정을 선택해주세요."); return; }
+    if(!startDate || !endDate){ alert("시작일과 종료일을 입력해주세요."); return; }
+    onAdd({ tradeId, startDate, endDate: endDate<startDate ? startDate : endDate, contactId, memo });
+  }
+
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-head">
+          <div>
+            <p className="eyebrow">ADD SCHEDULE</p>
+            <h3>{site.name}</h3>
+          </div>
+          <button className="close-x" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="row2">
+          <div className="field">
+            <label>공정</label>
+            <select value={tradeId} onChange={e=>handleTradeChange(e.target.value)}>
+              {trades.map(t => <option value={t.id} key={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label>담당자</label>
+            <select value={contactId} onChange={e=>setContactId(e.target.value)}>
+              {trade?.contacts.map(c => <option value={c.id} key={c.id}>{c.name}{c.isDefault ? " (기본)" : ""}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label>시작일</label>
+            <input type="date" value={startDate} onChange={e=>handleStartChange(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>종료일 (총 기간)</label>
+            <input type="date" value={endDate} min={startDate} onChange={e=>setEndDate(e.target.value)} />
+          </div>
+          <div className="field" style={{gridColumn:"1 / -1"}}>
+            <label>메모</label>
+            <input type="text" value={memo} onChange={e=>setMemo(e.target.value)} placeholder="예: 실측 약속, 오전 시공 등" />
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>취소</button>
+          <button className="btn btn-primary" onClick={submit}>추가</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete }){
   const range = scheduleRange(schedule);
   const [startDate, setStartDate] = useState(range.start);
@@ -1109,6 +1182,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   const [selectedDate, setSelectedDate] = useState(null); // full "YYYY-MM-DD" string, or null
   const [dragOverDate, setDragOverDate] = useState(null);
   const [editingScheduleId, setEditingScheduleId] = useState(null);
+  const [quickAdd, setQuickAdd] = useState(null); // { siteId, date } or null
 
   function handleChipDragStart(e, scheduleId, originDate){
     e.stopPropagation();
@@ -1289,7 +1363,12 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                               >
                                 {item.trades.length>0 ? (
                                   tradeSlots.map((tr, ti) => (
-                                    <div className="trade-slot" key={ti}>
+                                    <div
+                                      className={"trade-slot" + (tr ? "" : " trade-slot-empty")}
+                                      key={ti}
+                                      title={tr ? "" : "클릭해서 이 날짜에 공정 추가"}
+                                      onClick={tr ? undefined : (e=>{ e.stopPropagation(); setQuickAdd({siteId: item.site.id, date: dateStr}); })}
+                                    >
                                       {tr && (
                                         <div
                                           className="trade-day-chip"
@@ -1306,7 +1385,13 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                     </div>
                                   ))
                                 ) : item.active ? (
-                                  <div className="site-name-fill">{item.site.name}</div>
+                                  <div
+                                    className="site-name-fill"
+                                    title="클릭해서 이 날짜에 공정 추가"
+                                    onClick={e=>{ e.stopPropagation(); setQuickAdd({siteId: item.site.id, date: dateStr}); }}
+                                  >
+                                    {item.site.name}
+                                  </div>
                                 ) : null}
                               </div>
                             );
@@ -1472,6 +1557,20 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
             onClose={()=>setEditingScheduleId(null)}
             onSave={patch => { setSchedules(prev => prev.map(s => s.id===sc.id ? {...s, ...patch} : s)); setEditingScheduleId(null); }}
             onDelete={() => { if(confirm(`"${site?.name} · ${trade?.name}" 일정을 삭제할까요?`)){ setSchedules(prev=>prev.filter(s=>s.id!==sc.id)); setEditingScheduleId(null); } }}
+          />
+        );
+      })()}
+
+      {quickAdd && (() => {
+        const site = siteById[quickAdd.siteId];
+        if(!site) return null;
+        return (
+          <QuickAddScheduleModal
+            site={site}
+            trades={trades}
+            initialDate={quickAdd.date}
+            onClose={()=>setQuickAdd(null)}
+            onAdd={sc => { setSchedules(prev => [...prev, { ...sc, id: uid(), siteId: site.id }]); setQuickAdd(null); }}
           />
         );
       })()}
