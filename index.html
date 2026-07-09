@@ -1098,7 +1098,10 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
     sites.map((s, i) => [s.id, PROJECT_COLOR_POOL[i % PROJECT_COLOR_POOL.length]])
   ), [sites]);
 
-  const relevantSites = useMemo(() => sites.filter(s => siteFilter==="all" || s.id===siteFilter), [sites, siteFilter]);
+  const relevantSites = useMemo(() => sites
+    .filter(s => siteFilter==="all" || s.id===siteFilter)
+    .sort((a,b) => (a.order??0) - (b.order??0)),
+    [sites, siteFilter]);
 
   // display range for each site's header bar: its registered project period, or (if none
   // was set) the span from its earliest to latest trade schedule
