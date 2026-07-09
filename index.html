@@ -41,7 +41,7 @@
   button{font-family:var(--sans);cursor:pointer;}
   input,select,textarea{font-family:var(--sans);}
 
-  .app{max-width:1080px;margin:0 auto;padding:0 20px 80px;}
+  .app{width:1240px;max-width:none;margin:0 auto;padding:0 20px 80px;}
 
   /* header */
   .header{
@@ -50,7 +50,7 @@
     margin:0 -20px 0;
     padding:28px 20px 0;
   }
-  .header-inner{max-width:1080px;margin:0 auto;}
+  .header-inner{width:1240px;max-width:none;margin:0 auto;}
   .eyebrow{
     font-family:var(--mono);
     font-size:11px;
@@ -254,24 +254,24 @@
   .cal-filter select{padding:8px 10px;border-radius:8px;border:1px solid var(--paper-line);font-size:13px;background:var(--card);}
   .cal-dow-row{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:14px;}
   .cal-dow{font-family:var(--mono);font-size:11px;color:var(--ink-soft);text-align:center;padding-bottom:4px;letter-spacing:.05em;}
-  .cal-two-month{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start;}
+  .cal-two-month{display:grid;grid-template-columns:1fr;gap:22px;align-items:start;}
   .cal-month-card{padding:16px;}
   .cal-month-title{font-family:var(--mono);font-size:14px;font-weight:800;color:var(--navy);margin:0 0 4px;}
   .cal-legend-card{margin-top:14px;padding:14px 18px;}
   @media (max-width:900px){
-    .cal-two-month{grid-template-columns:1fr;}
+    .app,.header-inner{width:1180px;}
   }
-  .week-row{margin-bottom:4px;}
-  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;}
+  .week-row{margin-bottom:0;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:0;}
   .cal-cell{
-    background:var(--card);border:1px solid var(--paper-line);border-radius:8px;min-height:78px;padding:5px 4px;
-    display:flex;flex-direction:column;gap:2px;cursor:pointer;
+    background:var(--card);border:1px solid var(--paper-line);border-radius:0;min-height:168px;padding:0;
+    display:flex;flex-direction:column;gap:0;cursor:pointer;overflow:hidden;
   }
   .cal-cell.empty-cell{background:transparent;border:none;cursor:default;}
   .cal-cell.today{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);}
   .cal-cell.picked{border-color:var(--navy);box-shadow:inset 0 0 0 1.5px var(--navy);}
   .cal-cell:hover:not(.empty-cell){border-color:var(--steel);}
-  .cal-date{font-family:var(--mono);font-size:11px;color:var(--ink-soft);padding-left:2px;}
+  .cal-date{font-family:var(--mono);font-size:11px;color:var(--ink-soft);padding:4px 5px 2px;display:block;line-height:1;}
   .gantt-bar{
     height:15px;border-radius:0;flex-shrink:0;display:flex;align-items:center;overflow:hidden;box-sizing:border-box;
   }
@@ -287,6 +287,21 @@
   .gantt-label{
     font-size:9.5px;color:#fff;font-weight:700;padding-left:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
+  .site-lane-wrap{display:flex;flex-direction:column;flex:1;min-height:0;}
+  .site-day-block{
+    border:0;border-radius:0;padding:1px 3px;
+    display:flex;flex-direction:column;gap:0;overflow:hidden;min-height:0;
+  }
+  .site-day-block.empty-lane{background:transparent !important;}
+  .trade-slot{
+    height:15px;min-height:15px;display:flex;align-items:center;overflow:hidden;
+  }
+  .trade-day-chip{
+    width:100%;height:14px;border-radius:0;display:flex;align-items:center;padding:1px 5px;overflow:hidden;
+    box-shadow:none;
+  }
+  .trade-day-chip span{font-size:9.5px;color:#fff;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
   .cal-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;}
   .legend-item{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-soft);}
   .legend-dot{width:9px;height:9px;border-radius:3px;}
@@ -1008,14 +1023,11 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
     return map;
   }, [relevantSites, projectItems, filtered]);
 
-  // only the items actually happening on this specific day — no reserved empty rows for
-  // trades that aren't running that day. Grouped: site header bar, then that site's
-  // active trades for the day (each keeping its own original trade color), then the
-  // next site's group, etc.
+  // 해당 날짜에 실제 진행 중인 현장만 블록으로 표시합니다.
+  // 현장별 배경색으로 영역을 구분하고, 그 색상 위에 일자별 공정을 칩 형태로 넣습니다.
   function dayItems(dateStr){
     if(!dateStr) return [];
-    const out = [];
-    relevantSites.forEach(site => {
+    return relevantSites.map(site => {
       const range = siteRanges[site.id];
       const headerActive = range && dateStr>=range.start && dateStr<=range.end;
       const siteTradesToday = trades
@@ -1023,19 +1035,13 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
           const sc = filtered.find(s => s.siteId===site.id && s.tradeId===t.id && (() => {
             const { start, end } = scheduleRange(s); return dateStr>=start && dateStr<=end;
           })());
-          return sc ? { t, sc } : null;
+          if(!sc) return null;
+          const r = scheduleRange(sc);
+          return { trade:t, start:r.start, end:r.end };
         })
         .filter(Boolean);
-      if(!headerActive && siteTradesToday.length===0) return;
-      const groupStartIdx = out.length;
-      if(headerActive) out.push({ kind:"header", site, start:range.start, end:range.end });
-      siteTradesToday.forEach(({ t, sc }) => {
-        const r = scheduleRange(sc);
-        out.push({ kind:"trade", site, trade:t, start:r.start, end:r.end });
-      });
-      if(out.length>groupStartIdx && groupStartIdx>0) out[groupStartIdx].groupGap = true;
+      return { site, active: !!headerActive || siteTradesToday.length>0, start:range?.start, end:range?.end, trades:siteTradesToday };
     });
-    return out;
   }
 
   function changeMonth(delta){
@@ -1058,7 +1064,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
     return Object.entries(groups);
   }, [filtered, projectItems]);
 
-  // renders one month's dow-row + week grid (used twice, side by side)
+  // renders one month's dow-row + week grid (used twice, stacked vertically)
   function renderMonthCard(monthCursor){
     const { y, m } = monthCursor;
     const weeks = buildWeeks(y, m);
@@ -1082,27 +1088,38 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                       onClick={()=> day && setSelectedDate(dateStr)}
                     >
                       {day && <span className="cal-date">{day}</span>}
-                      {day && dayItems(dateStr).map((item, idx) => {
-                        const gapClass = item.groupGap ? " lane-gap" : "";
-                        const prevDateStr = di>0 ? dateStrs[di-1] : null;
-                        const prevActive = prevDateStr && prevDateStr>=item.start && prevDateStr<=item.end;
-                        const showLabel = item.kind==="trade" || !prevActive; // trade labels repeat daily; header label only at the start of a visible run
-                        const barColor = item.kind==="header" ? siteColorMap[item.site.id] : item.trade.color;
-                        const label = item.kind==="header" ? item.site.name : item.trade.name;
-                        const titleText = item.kind==="header"
-                          ? `${item.site.name} 전체공사 (${item.start} ~ ${item.end})`
-                          : `${item.site.name} · ${item.trade.name} (${item.start} ~ ${item.end})`;
-                        return (
-                          <div
-                            key={idx}
-                            className={"gantt-bar" + gapClass + (dateStr===item.start ? " round-l" : "") + (dateStr===item.end ? " round-r" : "") + (item.kind==="header" ? " project" : "")}
-                            style={{background: barColor}}
-                            title={titleText}
-                          >
-                            {showLabel && <span className="gantt-label">{label}</span>}
-                          </div>
-                        );
-                      })}
+                      {day && (
+                        <div className="site-lane-wrap">
+                          {dayItems(dateStr).map((item, idx) => {
+                            const siteColor = siteColorMap[item.site.id];
+                            const titleText = `${item.site.name}${item.start && item.end ? ` 전체공사 (${item.start} ~ ${item.end})` : ""}`;
+                            const laneStyle = { flex: relevantSites.length ? `1 1 ${100/relevantSites.length}%` : "1", background: item.active ? siteColor + "48" : "transparent" };
+                            const tradeSlots = Array.from({length:3}, (_, i) => item.trades[i] || null);
+                            return (
+                              <div
+                                key={idx}
+                                className={"site-day-block" + (!item.active ? " empty-lane" : "")}
+                                style={laneStyle}
+                                title={item.active ? titleText : ""}
+                              >
+                                {tradeSlots.map((tr, ti) => (
+                                  <div className="trade-slot" key={ti}>
+                                    {tr && (
+                                      <div
+                                        className="trade-day-chip"
+                                        style={{background: tr.trade.color}}
+                                        title={`${item.site.name} · ${tr.trade.name} (${tr.start} ~ ${tr.end})`}
+                                      >
+                                        <span>{tr.trade.name}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
