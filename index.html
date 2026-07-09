@@ -741,6 +741,7 @@ function SitesTab({ sites, setSites, trades, schedules, setSchedules }){
           onClose={()=>setDetailSiteId(null)}
           onUpdateSite={patch=>updateSite(detailSite.id, patch)}
           onAddSchedule={sc=>setSchedules(prev=>[...prev, {...sc, id: uid(), siteId: detailSite.id}])}
+          onUpdateSchedule={(id, patch)=>setSchedules(prev=>prev.map(s=>s.id===id ? {...s, ...patch} : s))}
           onDeleteSchedule={id=>setSchedules(prev=>prev.filter(s=>s.id!==id))}
           onViewFile={setViewFile}
         />
@@ -860,9 +861,12 @@ function SiteFormModal({ onClose, onSave, initial }){
   );
 }
 
-function SiteDetailModal({ site, trades, schedules, onClose, onUpdateSite, onAddSchedule, onDeleteSchedule, onViewFile }){
+function SiteDetailModal({ site, trades, schedules, onClose, onUpdateSite, onAddSchedule, onUpdateSchedule, onDeleteSchedule, onViewFile }){
   const [editing, setEditing] = useState(false);
   const [addingTradeId, setAddingTradeId] = useState(null);
+  const [editingScheduleId, setEditingScheduleId] = useState(null);
+  const editingSchedule = schedules.find(s => s.id===editingScheduleId);
+  const editingTrade = editingSchedule ? trades.find(t => t.id===editingSchedule.tradeId) : null;
 
   return (
     <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
@@ -886,7 +890,7 @@ function SiteDetailModal({ site, trades, schedules, onClose, onUpdateSite, onAdd
           <button className="btn btn-ghost btn-sm" onClick={()=>setEditing(true)}>현장정보 수정</button>
         </div>
 
-        <p className="eyebrow" style={{marginBottom:8}}>TRADES / 공사별 일정 (기간)</p>
+        <p className="eyebrow" style={{marginBottom:8}}>TRADES / 공사별 일정 (기간) — 클릭하면 수정</p>
         <div className="trade-list">
           {trades.map(trade => {
             const tradeSchedules = schedules.filter(s => s.tradeId===trade.id);
@@ -910,9 +914,9 @@ function SiteDetailModal({ site, trades, schedules, onClose, onUpdateSite, onAdd
                       const { start, end } = scheduleRange(sc);
                       const span = daySpan(sc);
                       return (
-                        <span className="chip" key={sc.id}>
+                        <span className="chip" key={sc.id} style={{cursor:"pointer"}} onClick={()=>setEditingScheduleId(sc.id)}>
                           📅 {start}{end!==start && ` ~ ${end}`} ({span}일) · {contact?.name || "담당자 미지정"} {sc.memo && `· ${sc.memo}`}
-                          <span className="x" onClick={()=>onDeleteSchedule(sc.id)}>✕</span>
+                          <span className="x" onClick={e=>{ e.stopPropagation(); onDeleteSchedule(sc.id); }}>✕</span>
                         </span>
                       );
                     })}
@@ -942,6 +946,76 @@ function SiteDetailModal({ site, trades, schedules, onClose, onUpdateSite, onAdd
           onSave={patch=>{ onUpdateSite(patch); setEditing(false); }}
         />
       )}
+      {editingSchedule && editingTrade && (
+        <EditScheduleModal
+          schedule={editingSchedule}
+          trade={editingTrade}
+          site={site}
+          onClose={()=>setEditingScheduleId(null)}
+          onSave={patch=>{ onUpdateSchedule(editingSchedule.id, patch); setEditingScheduleId(null); }}
+          onDelete={()=>{ onDeleteSchedule(editingSchedule.id); setEditingScheduleId(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete }){
+  const range = scheduleRange(schedule);
+  const [startDate, setStartDate] = useState(range.start);
+  const [endDate, setEndDate] = useState(range.end);
+  const [contactId, setContactId] = useState(schedule.contactId || trade?.contacts[0]?.id || "");
+  const [memo, setMemo] = useState(schedule.memo || "");
+
+  function handleStartChange(v){
+    setStartDate(v);
+    if(endDate < v) setEndDate(v);
+  }
+  function submit(){
+    if(!startDate || !endDate){ alert("시작일과 종료일을 입력해주세요."); return; }
+    onSave({ startDate, endDate: endDate<startDate ? startDate : endDate, contactId, memo });
+  }
+
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-head">
+          <div>
+            <p className="eyebrow">EDIT SCHEDULE</p>
+            <h3>{site?.name} · {trade?.name}</h3>
+          </div>
+          <button className="close-x" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="row2">
+          <div className="field">
+            <label>시작일</label>
+            <input type="date" value={startDate} onChange={e=>handleStartChange(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>종료일 (총 기간)</label>
+            <input type="date" value={endDate} min={startDate} onChange={e=>setEndDate(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>담당자</label>
+            <select value={contactId} onChange={e=>setContactId(e.target.value)}>
+              {trade?.contacts.map(c => <option value={c.id} key={c.id}>{c.name}{c.isDefault ? " (기본)" : ""}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label>메모</label>
+            <input type="text" value={memo} onChange={e=>setMemo(e.target.value)} placeholder="예: 실측 약속, 오전 시공 등" />
+          </div>
+        </div>
+
+        <div className="modal-footer" style={{justifyContent:"space-between"}}>
+          <button className="btn btn-danger" onClick={onDelete}>일정 삭제</button>
+          <div style={{display:"flex", gap:8}}>
+            <button className="btn btn-ghost" onClick={onClose}>취소</button>
+            <button className="btn btn-primary" onClick={submit}>저장</button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1034,6 +1108,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   const [siteFilter, setSiteFilter] = useState("all");
   const [selectedDate, setSelectedDate] = useState(null); // full "YYYY-MM-DD" string, or null
   const [dragOverDate, setDragOverDate] = useState(null);
+  const [editingScheduleId, setEditingScheduleId] = useState(null);
 
   function handleChipDragStart(e, scheduleId, originDate){
     e.stopPropagation();
@@ -1219,11 +1294,11 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                         <div
                                           className="trade-day-chip"
                                           style={{background: tr.trade.color}}
-                                          title={`${item.site.name} · ${tr.trade.name} (${tr.start} ~ ${tr.end}) — 드래그로 날짜 이동, 클릭하면 삭제`}
+                                          title={`${item.site.name} · ${tr.trade.name} (${tr.start} ~ ${tr.end}) — 드래그로 날짜 이동, 클릭하면 수정`}
                                           draggable
                                           onDragStart={e=>handleChipDragStart(e, tr.id, dateStr)}
                                           onDragEnd={()=>setDragOverDate(null)}
-                                          onClick={e=>{ e.stopPropagation(); deleteScheduleById(tr.id, `${item.site.name} · ${tr.trade.name}`); }}
+                                          onClick={e=>{ e.stopPropagation(); setEditingScheduleId(tr.id); }}
                                         >
                                           <span>{tr.trade.name}{tr.memo && `(${tr.memo})`}</span>
                                         </div>
@@ -1315,7 +1390,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                 <div className="empty">이 날짜에 진행 중인 공사가 없습니다.</div>
               ) : (
                 schedulesOn(selectedDate).map(sc => (
-                  <ScheduleRow key={sc.id} sc={sc} trade={tradeById[sc.tradeId]} site={siteById[sc.siteId]} onDelete={()=>setSchedules(prev=>prev.filter(s=>s.id!==sc.id))} />
+                  <ScheduleRow key={sc.id} sc={sc} trade={tradeById[sc.tradeId]} site={siteById[sc.siteId]} onDelete={()=>setSchedules(prev=>prev.filter(s=>s.id!==sc.id))} onEdit={()=>setEditingScheduleId(sc.id)} />
                 ))
               )}
             </div>
@@ -1356,7 +1431,12 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                   const isPast = end < todayFull;
                   const span = daySpan(sc);
                   return (
-                    <div className={"agenda-item" + (isPast ? " past" : "")} key={sc.id}>
+                    <div
+                      className={"agenda-item" + (isPast ? " past" : "")}
+                      key={sc.id}
+                      onClick={()=> !isProject && setEditingScheduleId(sc.id)}
+                      style={isProject ? {} : {cursor:"pointer"}}
+                    >
                       <span className="agenda-swatch" style={{background: isProject ? "var(--navy-deep)" : trade?.color}} />
                       <div className="agenda-date">
                         {d.getDate()}
@@ -1369,7 +1449,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                           {!isProject && <> · 담당자: {contact?.name || "미지정"} {contact?.phone && `· ${contact.phone}`} {sc.memo && `· ${sc.memo}`}</>}
                         </div>
                       </div>
-                      {!isProject && <button className="btn btn-danger btn-sm" onClick={()=>setSchedules(prev=>prev.filter(s=>s.id!==sc.id))}>삭제</button>}
+                      {!isProject && <button className="btn btn-danger btn-sm" onClick={e=>{ e.stopPropagation(); setSchedules(prev=>prev.filter(s=>s.id!==sc.id)); }}>삭제</button>}
                     </div>
                   );
                 })}
@@ -1378,16 +1458,33 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
           )}
         </div>
       )}
+
+      {editingScheduleId && (() => {
+        const sc = schedules.find(s => s.id===editingScheduleId);
+        if(!sc) return null;
+        const trade = tradeById[sc.tradeId];
+        const site = siteById[sc.siteId];
+        return (
+          <EditScheduleModal
+            schedule={sc}
+            trade={trade}
+            site={site}
+            onClose={()=>setEditingScheduleId(null)}
+            onSave={patch => { setSchedules(prev => prev.map(s => s.id===sc.id ? {...s, ...patch} : s)); setEditingScheduleId(null); }}
+            onDelete={() => { if(confirm(`"${site?.name} · ${trade?.name}" 일정을 삭제할까요?`)){ setSchedules(prev=>prev.filter(s=>s.id!==sc.id)); setEditingScheduleId(null); } }}
+          />
+        );
+      })()}
     </div>
   );
 }
 
-function ScheduleRow({ sc, trade, site, onDelete }){
+function ScheduleRow({ sc, trade, site, onDelete, onEdit }){
   const contact = trade?.contacts.find(c=>c.id===sc.contactId);
   const { start, end } = scheduleRange(sc);
   const span = daySpan(sc);
   return (
-    <div className="day-sched">
+    <div className="day-sched" onClick={onEdit} style={onEdit ? {cursor:"pointer"} : {}}>
       <span className="swatch-bar" style={{background: trade?.color}} />
       <div style={{flex:1}}>
         <div style={{fontWeight:800, fontSize:14}}>{trade?.name} · {site?.name}</div>
@@ -1396,7 +1493,7 @@ function ScheduleRow({ sc, trade, site, onDelete }){
         </div>
         {sc.memo && <div style={{fontSize:12.5, color:"var(--ink-soft)", marginTop:2}}>메모: {sc.memo}</div>}
       </div>
-      <button className="btn btn-danger btn-sm" onClick={onDelete}>삭제</button>
+      <button className="btn btn-danger btn-sm" onClick={e=>{ e.stopPropagation(); onDelete(); }}>삭제</button>
     </div>
   );
 }
