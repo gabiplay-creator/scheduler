@@ -287,18 +287,18 @@
   .gantt-label{
     font-size:9.5px;color:#fff;font-weight:700;padding-left:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
-  .site-lane-wrap{display:flex;flex-direction:column;flex:1;min-height:0;}
+  .site-lane-wrap{display:flex;flex-direction:column;flex:1;min-height:0;gap:3px;}
   .site-day-block{
     border:0;border-radius:0;padding:1px 3px;
     display:flex;flex-direction:column;gap:0;overflow:hidden;min-height:0;
   }
   .site-day-block.empty-lane{background:transparent !important;}
   .trade-slot{
-    height:15px;min-height:15px;display:flex;align-items:center;overflow:hidden;
+    height:18px;min-height:18px;display:flex;align-items:center;overflow:hidden;
   }
   .trade-day-chip{
-    width:100%;height:14px;border-radius:0;display:flex;align-items:center;padding:1px 5px;overflow:hidden;
-    box-shadow:none;
+    width:100%;height:14px;border-radius:2px;display:flex;align-items:center;padding:1px 5px;overflow:hidden;
+    box-shadow:none;margin-bottom:4px;box-sizing:border-box;
   }
   .trade-day-chip span{font-size:9.5px;color:#fff;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
@@ -423,56 +423,56 @@ function useSyncedState(collectionName, initialValue){
 
 /* ---------- data ---------- */
 const DEFAULT_TRADES = [
-  { id:"demolition", name:"철거", color:"#B23A48",
+  { id:"demolition", name:"철거", color:"#A02A2A",
     contacts:[{id:"c-demolition-1", name:"손정수", phone:"5622-1031", bank:"기업", account:"181-088341-02-013", isDefault:true}],
     note:"철거 가능 여부 문의 후 등본 통해 진행" },
-  { id:"sash", name:"샷시", color:"#2F6690",
+  { id:"sash", name:"샷시", color:"#1B5E86",
     contacts:[{id:"c-sash-1", name:"노영수(대리님)", phone:"7243-6283", bank:"카드결제", account:"", isDefault:true}],
     note:"도면/주소 주고 실측 약속 잡고, 계약 이후 시공일 잡으면 됨" },
-  { id:"carpentry", name:"목공", color:"#8B5E34",
+  { id:"carpentry", name:"목공", color:"#7A4A1E",
     contacts:[{id:"c-carpentry-1", name:"강동혁", phone:"", bank:"신한", account:"110-593-427718", isDefault:true}],
     note:"도면/주소 주고, 시공내역 주면서, 며칠 걸릴지 물어서 잡으면 됨" },
-  { id:"tile", name:"타일", color:"#3E7C6B",
+  { id:"tile", name:"타일", color:"#0F7A63",
     contacts:[{id:"c-tile-1", name:"최환석", phone:"4664-8678", bank:"국민", account:"839-2020-4084-824", isDefault:true}],
     note:"도면/주소 주고, 시공내역 주면서, 며칠 걸릴지 물어서 잡으면 됨" },
-  { id:"ceramic", name:"도기", color:"#6B5B95",
+  { id:"ceramic", name:"도기", color:"#6A2FA0",
     contacts:[{id:"c-ceramic-1", name:"장호준", phone:"7190-7777", bank:"기업", account:"010-6413-6628", isDefault:true}],
     note:"도면/주소 주고, 시공내역 주면서, 날짜 잡음" },
-  { id:"electric", name:"전기", color:"#C98A17",
+  { id:"electric", name:"전기", color:"#B5860B",
     contacts:[{id:"c-electric-1", name:"이대희", phone:"9481-0907", bank:"농협", account:"302-9481-0907-11", isDefault:true}],
     note:"주소 주고 날짜 잡음" },
-  { id:"furniture", name:"가구", color:"#A0522D",
+  { id:"furniture", name:"가구", color:"#9C4B14",
     contacts:[{id:"c-furniture-1", name:"박호성", phone:"6295-2575", bank:"", account:"", isDefault:true}],
     note:"주소 주고, 철거 후 실측하고(손님과), 시공일 잡음" },
-  { id:"wallpaper", name:"도배", color:"#C97064",
+  { id:"wallpaper", name:"도배", color:"#C1275D",
     contacts:[{id:"c-wallpaper-1", name:"양여사님", phone:"9193-8481", bank:"신한", account:"969 04 098890", isDefault:true}],
     note:"주소/도면/날짜 주면 알아서 맞춰오심. 자재량 여쭤보고 주문" },
-  { id:"wallpaper-supply", name:"도배지", color:"#D4A373",
+  { id:"wallpaper-supply", name:"도배지", color:"#B9761F",
     contacts:[{id:"c-wallpaper-supply-1", name:"하임상사", phone:"", bank:"", account:"", isDefault:true}],
     note:"도배 전날로 도착하도록 주문" },
-  { id:"flooring", name:"마루", color:"#7A5C3E",
+  { id:"flooring", name:"마루", color:"#5C3A1E",
     contacts:[{id:"c-flooring-1", name:"대진동화(이사님)", phone:"3765-6993", bank:"국민우리데코", account:"164537-04-004100", isDefault:true}],
     note:"도배 전날로 도착하도록 주문" },
-  { id:"door", name:"중문", color:"#4A6C6F",
+  { id:"door", name:"중문", color:"#1F4E5A",
     contacts:[{id:"c-door-1", name:"김현철(차장님)", phone:"6541-8110", bank:"기업태성밀리", account:"306-124748-04-010", isDefault:true}],
     note:"해당 양식대로 주면서, 날짜 잡음" },
-  { id:"paint", name:"도장", color:"#E2792F",
+  { id:"paint", name:"도장", color:"#C1440E",
     contacts:[{id:"c-paint-1", name:"박수혁", phone:"2264-7734", bank:"국민", account:"269902-04-224410", isDefault:true}],
     note:"도면/주소 주고, 시공내역 주면서, 날짜 잡음" },
-  { id:"film", name:"필름", color:"#5B7DB1",
+  { id:"film", name:"필름", color:"#2F3E9E",
     contacts:[{id:"c-film-1", name:"필름반장님", phone:"5851-8749", bank:"", account:"", isDefault:true}],
     note:"시공내역 사진으로 견적 후 필요 날짜 잡음 (주말도 가능)" },
-  { id:"movein-clean", name:"입주청소", color:"#4A7C59",
+  { id:"movein-clean", name:"입주청소", color:"#1F6B4A",
     contacts:[{id:"c-movein-clean-1", name:"김강민", phone:"5489-8001", bank:"우리", account:"1002-9304-04398", isDefault:true}],
     note:"주소(평형) 주고 날짜 잡음" },
-  { id:"grout", name:"메지", color:"#8338EC",
+  { id:"grout", name:"메지", color:"#6C2BC9",
     contacts:[{id:"c-grout-1", name:"허연서", phone:"010-3809-3382", bank:"", account:"", isDefault:true}],
     note:"타일 시공 후 도면/주소 주고 날짜 잡음" },
 ];
 
 const TRADE_COLOR_POOL = [
-  "#118AB2","#EF476F","#06D6A0","#FFB703","#9C6644","#3A86FF","#FF6B6B",
-  "#495867","#7B2CBF","#2A9D8F","#E76F51","#BC6C25","#264653","#F4A261",
+  "#0E6E86","#B5174B","#0C8F6E","#B8790A","#6B4A22","#2451B5","#C23B3B",
+  "#37424F","#5E1FA0","#1D6B5C","#B14E1D","#8A5210","#152F3D","#B85E1B",
 ];
 function nextTradeColor(existingColors){
   const found = TRADE_COLOR_POOL.find(c => !existingColors.includes(c));
