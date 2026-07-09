@@ -303,6 +303,11 @@
   }
   .trade-day-chip:active{cursor:grabbing;}
   .trade-day-chip span{font-size:9.5px;color:#fff;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .site-name-fill{
+    font-size:9px;line-height:1.2;color:var(--ink);font-weight:800;letter-spacing:.01em;
+    padding:3px 5px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+    opacity:.75;
+  }
 
   .cal-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;}
   .legend-item{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-soft);}
@@ -1146,23 +1151,27 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                 style={laneStyle}
                                 title={item.active ? titleText : ""}
                               >
-                                {tradeSlots.map((tr, ti) => (
-                                  <div className="trade-slot" key={ti}>
-                                    {tr && (
-                                      <div
-                                        className="trade-day-chip"
-                                        style={{background: tr.trade.color}}
-                                        title={`${item.site.name} · ${tr.trade.name} (${tr.start} ~ ${tr.end}) — 드래그로 날짜 이동, 클릭하면 삭제`}
-                                        draggable
-                                        onDragStart={e=>handleChipDragStart(e, tr.id, dateStr)}
-                                        onDragEnd={()=>setDragOverDate(null)}
-                                        onClick={e=>{ e.stopPropagation(); deleteScheduleById(tr.id, `${item.site.name} · ${tr.trade.name}`); }}
-                                      >
-                                        <span>{tr.trade.name}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
+                                {item.trades.length>0 ? (
+                                  tradeSlots.map((tr, ti) => (
+                                    <div className="trade-slot" key={ti}>
+                                      {tr && (
+                                        <div
+                                          className="trade-day-chip"
+                                          style={{background: tr.trade.color}}
+                                          title={`${item.site.name} · ${tr.trade.name} (${tr.start} ~ ${tr.end}) — 드래그로 날짜 이동, 클릭하면 삭제`}
+                                          draggable
+                                          onDragStart={e=>handleChipDragStart(e, tr.id, dateStr)}
+                                          onDragEnd={()=>setDragOverDate(null)}
+                                          onClick={e=>{ e.stopPropagation(); deleteScheduleById(tr.id, `${item.site.name} · ${tr.trade.name}`); }}
+                                        >
+                                          <span>{tr.trade.name}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))
+                                ) : item.active ? (
+                                  <div className="site-name-fill">{item.site.name}</div>
+                                ) : null}
                               </div>
                             );
                           })}
