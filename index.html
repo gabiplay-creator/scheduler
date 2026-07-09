@@ -258,6 +258,12 @@
   .cal-dow-row{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:14px;}
   .cal-dow{font-family:var(--mono);font-size:11px;color:var(--ink-soft);text-align:center;padding-bottom:4px;letter-spacing:.05em;}
   .cal-two-month{display:grid;grid-template-columns:1fr;gap:22px;align-items:start;}
+  .by-site-list{display:flex;flex-direction:column;gap:22px;}
+  .by-site-section{border:1px solid var(--paper-line);border-radius:12px;overflow:hidden;background:var(--card);}
+  .by-site-header{
+    padding:10px 16px;color:#fff;font-weight:800;font-size:14px;letter-spacing:.01em;
+  }
+  .by-site-section .cal-month-card{border:none;border-radius:0;box-shadow:none;}
   .cal-month-card{padding:16px;}
   .cal-month-title{font-family:var(--mono);font-size:14px;font-weight:800;color:var(--navy);margin:0 0 4px;}
   .cal-legend-card{margin-top:14px;padding:14px 18px;}
@@ -1123,9 +1129,10 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
 
   // 해당 날짜에 실제 진행 중인 현장만 블록으로 표시합니다.
   // 현장별 배경색으로 영역을 구분하고, 그 색상 위에 일자별 공정을 칩 형태로 넣습니다.
-  function dayItems(dateStr){
+  function dayItems(dateStr, sitesOverride){
     if(!dateStr) return [];
-    return relevantSites.map(site => {
+    const siteList = sitesOverride || relevantSites;
+    return siteList.map(site => {
       const range = siteRanges[site.id];
       const headerActive = range && dateStr>=range.start && dateStr<=range.end;
       const siteTradesToday = trades
@@ -1163,9 +1170,10 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   }, [filtered, projectItems]);
 
   // renders one month's dow-row + week grid (used twice, stacked vertically)
-  function renderMonthCard(monthCursor){
+  function renderMonthCard(monthCursor, sitesOverride){
     const { y, m } = monthCursor;
     const weeks = buildWeeks(y, m);
+    const siteList = sitesOverride || relevantSites;
     return (
       <div className="card cal-month-card" key={`${y}-${m}`}>
         <p className="cal-month-title">{y}. {pad(m+1)}</p>
@@ -1192,10 +1200,10 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                       {day && <span className="cal-date">{day}</span>}
                       {day && (
                         <div className="site-lane-wrap">
-                          {dayItems(dateStr).map((item, idx) => {
+                          {dayItems(dateStr, siteList).map((item, idx) => {
                             const siteColor = siteColorMap[item.site.id];
                             const titleText = `${item.site.name}${item.start && item.end ? ` 전체공사 (${item.start} ~ ${item.end})` : ""}`;
-                            const laneStyle = { flex: relevantSites.length ? `1 1 ${100/relevantSites.length}%` : "1", background: item.active ? siteColor + "48" : "transparent" };
+                            const laneStyle = { flex: siteList.length ? `1 1 ${100/siteList.length}%` : "1", background: item.active ? siteColor + "48" : "transparent" };
                             const tradeSlots = Array.from({length:3}, (_, i) => item.trades[i] || null);
                             return (
                               <div
@@ -1251,6 +1259,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
         <div style={{display:"flex", gap:10, alignItems:"center", flexWrap:"wrap"}}>
           <div className="view-toggle">
             <button className={view==="month"?"active":""} onClick={()=>setView("month")}>달력형</button>
+            <button className={view==="bysite"?"active":""} onClick={()=>setView("bysite")}>현장별 보기</button>
             <button className={view==="agenda"?"active":""} onClick={()=>setView("agenda")}>전체 목록형</button>
           </div>
           <div className="cal-filter">
@@ -1259,17 +1268,21 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
               {sites.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}
             </select>
           </div>
-          {view==="month" && (
+          {(view==="month" || view==="bysite") && (
             <div className="cal-nav">
               <button onClick={()=>changeMonth(-1)}>‹</button>
-              <span className="cal-month">{cursor.y}.{pad(cursor.m+1)} - {addMonths(cursor,1).y}.{pad(addMonths(cursor,1).m+1)}</span>
+              <span className="cal-month">
+                {view==="month"
+                  ? `${cursor.y}.${pad(cursor.m+1)} - ${addMonths(cursor,1).y}.${pad(addMonths(cursor,1).m+1)}`
+                  : `${cursor.y}.${pad(cursor.m+1)}`}
+              </span>
               <button onClick={()=>changeMonth(1)}>›</button>
             </div>
           )}
         </div>
       </div>
 
-      {view==="month" ? (
+      {view==="month" && (
         <>
           <div className="cal-two-month">
             {renderMonthCard(cursor)}
@@ -1308,7 +1321,24 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
             </div>
           )}
         </>
-      ) : (
+      )}
+
+      {view==="bysite" && (
+        <div className="by-site-list">
+          {(siteFilter==="all" ? [...sites].sort((a,b)=>(a.order??0)-(b.order??0)) : sites.filter(s=>s.id===siteFilter)).length===0 ? (
+            <div className="empty">등록된 현장이 없습니다.</div>
+          ) : (
+            (siteFilter==="all" ? [...sites].sort((a,b)=>(a.order??0)-(b.order??0)) : sites.filter(s=>s.id===siteFilter)).map(site => (
+              <div className="by-site-section" key={site.id}>
+                <div className="by-site-header" style={{background: siteColorMap[site.id]}}>{site.name}</div>
+                {renderMonthCard(cursor, [site])}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {view==="agenda" && (
         <div className="card">
           {agendaGroups.length===0 ? (
             <div className="empty">등록된 일정이 없습니다. 현장관리 탭에서 공사별 기간을 추가해보세요.</div>
