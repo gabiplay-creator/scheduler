@@ -1135,7 +1135,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
           })());
           if(!sc) return null;
           const r = scheduleRange(sc);
-          return { trade:t, start:r.start, end:r.end, id: sc.id, siteId: site.id };
+          return { trade:t, start:r.start, end:r.end, id: sc.id, siteId: site.id, memo: sc.memo };
         })
         .filter(Boolean);
       return { site, active: !!headerActive || siteTradesToday.length>0, start:range?.start, end:range?.end, trades:siteTradesToday };
@@ -1217,7 +1217,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                           onDragEnd={()=>setDragOverDate(null)}
                                           onClick={e=>{ e.stopPropagation(); deleteScheduleById(tr.id, `${item.site.name} · ${tr.trade.name}`); }}
                                         >
-                                          <span>{tr.trade.name}</span>
+                                          <span>{tr.trade.name}{tr.memo && `(${tr.memo})`}</span>
                                         </div>
                                       )}
                                     </div>
