@@ -122,7 +122,10 @@
     box-shadow:0 1px 2px rgba(20,20,20,0.03);
   }
   .grid-sites{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;}
-  .site-card{position:relative;}
+  .site-card{position:relative;cursor:grab;transition:box-shadow .15s, border-color .15s;}
+  .site-card:active{cursor:grabbing;}
+  .site-card.drag-over{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);}
+  .drag-handle{position:absolute;top:12px;right:22px;color:var(--paper-line);font-size:16px;letter-spacing:-2px;}
   .site-card .corner{
     position:absolute;top:0;right:0;width:0;height:0;
     border-style:solid;border-width:0 18px 18px 0;
@@ -573,6 +576,19 @@ function App(){
     if(missing.length) setTrades(prev => [...prev, ...missing.filter(dt => !prev.some(t=>t.id===dt.id))]);
   }, [trades]);
 
+  // give every site a display `order` value, sorted by its overall-project start date
+  // the first time (sites without a start date go last). After that, order is only
+  // ever changed by adding a new site (auto-placed by date) or by dragging a card
+  // (see SitesTab) — so a manual drag reorder is never silently undone.
+  useEffect(() => {
+    if(sites.length===0) return;
+    const missingOrder = sites.some(s => s.order===undefined || s.order===null);
+    if(!missingOrder) return;
+    const dateKey = s => s.projectStart || "9999-99-99";
+    const sorted = [...sites].sort((a,b) => dateKey(a).localeCompare(dateKey(b)) || (a.createdAt||0)-(b.createdAt||0));
+    setSites(sorted.map((s,i) => ({ ...s, order: i*10 })));
+  }, [sites]);
+
   const rulerTicks = Array.from({length: 40});
 
   return (
@@ -619,11 +635,21 @@ function SitesTab({ sites, setSites, trades, schedules, setSchedules }){
   const [showAdd, setShowAdd] = useState(false);
   const [detailSiteId, setDetailSiteId] = useState(null);
   const [viewFile, setViewFile] = useState(null); // {name, dataUrl, isImage}
+  const [dragOverSiteId, setDragOverSiteId] = useState(null);
 
   const detailSite = sites.find(s => s.id === detailSiteId);
+  const orderedSites = [...sites].sort((a,b) => (a.order??0) - (b.order??0));
 
   function addSite(site){
-    setSites(prev => [...prev, { ...site, id: uid(), createdAt: Date.now() }]);
+    setSites(prev => {
+      const ordered = [...prev].sort((a,b) => (a.order??0)-(b.order??0));
+      const newDate = site.projectStart || "9999-99-99";
+      let insertAt = ordered.findIndex(s => (s.projectStart || "9999-99-99") > newDate);
+      if(insertAt===-1) insertAt = ordered.length;
+      const prevOrder = insertAt>0 ? (ordered[insertAt-1].order ?? 0) : (ordered.length ? (ordered[0].order??0)-10 : 0);
+      const nextOrder = insertAt<ordered.length ? (ordered[insertAt].order ?? prevOrder+10) : prevOrder+10;
+      return [...prev, { ...site, id: uid(), createdAt: Date.now(), order: (prevOrder+nextOrder)/2 }];
+    });
     setShowAdd(false);
   }
   function updateSite(id, patch){
@@ -634,6 +660,18 @@ function SitesTab({ sites, setSites, trades, schedules, setSchedules }){
     setSites(prev => prev.filter(s => s.id!==id));
     setSchedules(prev => prev.filter(sc => sc.siteId!==id));
     if(detailSiteId===id) setDetailSiteId(null);
+  }
+  function reorderSites(draggedId, targetId){
+    if(draggedId===targetId) return;
+    setSites(prev => {
+      const ordered = [...prev].sort((a,b) => (a.order??0)-(b.order??0));
+      const fromIdx = ordered.findIndex(s=>s.id===draggedId);
+      const toIdx = ordered.findIndex(s=>s.id===targetId);
+      if(fromIdx===-1 || toIdx===-1) return prev;
+      const [moved] = ordered.splice(fromIdx,1);
+      ordered.splice(toIdx,0,moved);
+      return ordered.map((s,i)=>({...s, order:i*10}));
+    });
   }
 
   return (
@@ -650,9 +688,21 @@ function SitesTab({ sites, setSites, trades, schedules, setSchedules }){
         <div className="empty"><b>등록된 현장이 없습니다.</b><br/>“새 현장 추가”를 눌러 주소와 도면을 등록해보세요.</div>
       ) : (
         <div className="grid-sites">
-          {sites.map(site => (
-            <div className="card site-card" key={site.id}>
+          {orderedSites.map(site => (
+            <div
+              className={"card site-card" + (dragOverSiteId===site.id ? " drag-over" : "")}
+              key={site.id}
+              draggable
+              onDragStart={e=>{ e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/plain", site.id); }}
+              onDragOver={e=>e.preventDefault()}
+              onDragEnter={e=>{ e.preventDefault(); setDragOverSiteId(site.id); }}
+              onDragLeave={()=>{ if(dragOverSiteId===site.id) setDragOverSiteId(null); }}
+              onDrop={e=>{ e.preventDefault(); setDragOverSiteId(null); reorderSites(e.dataTransfer.getData("text/plain"), site.id); }}
+              onDragEnd={()=>setDragOverSiteId(null)}
+              title="드래그해서 순서를 바꿀 수 있어요"
+            >
               <div className="corner" />
+              <span className="drag-handle">⠿</span>
               <p className="site-name">{site.name}</p>
               <p className="site-addr">📍 {site.address || "주소 미등록"}</p>
               {site.projectStart && site.projectEnd && (
