@@ -257,21 +257,28 @@
   .cal-filter select{padding:8px 10px;border-radius:8px;border:1px solid var(--paper-line);font-size:13px;background:var(--card);}
   .cal-dow-row{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:14px;}
   .cal-dow{font-family:var(--mono);font-size:11px;color:var(--ink-soft);text-align:center;padding-bottom:4px;letter-spacing:.05em;}
-  .cal-two-month{display:grid;grid-template-columns:1fr;gap:22px;align-items:start;}
   .by-site-list{display:flex;flex-direction:column;gap:22px;}
   .by-site-section{border:1px solid var(--paper-line);border-radius:12px;overflow:hidden;background:var(--card);}
   .by-site-header{
     padding:10px 16px;color:#fff;font-weight:800;font-size:14px;letter-spacing:.01em;
   }
-  .by-site-section .cal-month-card{border:none;border-radius:0;box-shadow:none;}
-  .cal-month-card{padding:16px;}
-  .cal-month-title{font-family:var(--mono);font-size:14px;font-weight:800;color:var(--navy);margin:0 0 4px;}
+  .by-site-section .cal-continuous{border:none;border-radius:0;box-shadow:none;padding:16px;}
+  .cal-continuous{padding:16px;}
+  .cal-month-segment{position:relative;}
+  .cal-month-segment.has-boundary{margin-top:2px;}
+  .cal-month-watermark{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    font-family:var(--mono);font-weight:800;font-size:min(18vw,220px);line-height:1;
+    color:var(--navy-deep);opacity:.06;pointer-events:none;z-index:3;user-select:none;white-space:nowrap;
+  }
+  .cal-cell.month-boundary-top{border-top:3px solid var(--navy);}
+  .cal-cell.month-boundary-left{border-left:3px solid var(--navy);}
   .cal-legend-card{margin-top:14px;padding:14px 18px;}
   @media (max-width:900px){
     .app,.header-inner{width:1180px;}
   }
   .week-row{margin-bottom:0;}
-  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:0;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:0;position:relative;z-index:1;}
   .cal-cell{
     background:var(--card);border:1px solid var(--paper-line);border-radius:0;min-height:168px;padding:0;
     display:flex;flex-direction:column;gap:0;cursor:pointer;overflow:hidden;
@@ -1236,6 +1243,28 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
     return out;
   }
 
+  // builds one uninterrupted sequence of weeks spanning several consecutive months —
+  // no blank filler between the end of one month and the start of the next, only at
+  // the very start (before the 1st Sunday) and very end (after the last Saturday)
+  function buildContinuousWeeks(monthCursors){
+    const first = monthCursors[0], last = monthCursors[monthCursors.length-1];
+    const firstDate = new Date(first.y, first.m, 1);
+    const lastDate = new Date(last.y, last.m+1, 0);
+    const firstDow = firstDate.getDay();
+    const totalDays = Math.round((lastDate - firstDate) / 86400000) + 1;
+    const trailing = (7 - ((firstDow + totalDays) % 7)) % 7;
+    const cells = [];
+    for(let i=0;i<firstDow;i++) cells.push(null);
+    for(let i=0;i<totalDays;i++){
+      const d = new Date(firstDate); d.setDate(d.getDate()+i);
+      cells.push({ y: d.getFullYear(), m: d.getMonth(), day: d.getDate() });
+    }
+    for(let i=0;i<trailing;i++) cells.push(null);
+    const weeks = [];
+    for(let i=0;i<cells.length;i+=7) weeks.push(cells.slice(i,i+7));
+    return weeks;
+  }
+
   function dateStrFor(y, m, day){ return day ? `${y}-${pad(m+1)}-${pad(day)}` : null; }
 
   function schedulesOn(dateStr){
@@ -1319,89 +1348,120 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   }, [filtered, projectItems]);
 
   // renders one month's dow-row + week grid (used twice, stacked vertically)
-  function renderMonthCard(monthCursor, sitesOverride){
-    const { y, m } = monthCursor;
-    const weeks = buildWeeks(y, m);
+  function renderCalendarBlock(monthCursors, sitesOverride){
+    const weeks = buildContinuousWeeks(monthCursors);
     const siteList = sitesOverride || relevantSites;
+
+    // group consecutive weeks by whichever month has the most cells in that week,
+    // so each month's rows can be wrapped for a centered watermark number
+    const weekMonthKey = week => {
+      const counts = {};
+      week.forEach(c => { if(c){ const k = `${c.y}-${c.m}`; counts[k] = (counts[k]||0)+1; } });
+      let best = null, bestCount = 0;
+      Object.entries(counts).forEach(([k,v]) => { if(v>bestCount){ best=k; bestCount=v; } });
+      return best;
+    };
+    const segments = [];
+    weeks.forEach((week, wi) => {
+      const key = weekMonthKey(week);
+      const last = segments[segments.length-1];
+      if(last && last.key===key) last.weekIndices.push(wi);
+      else segments.push({ key, weekIndices:[wi] });
+    });
+
+    let firstCellSeen = false;
+
     return (
-      <div className="card cal-month-card" key={`${y}-${m}`}>
-        <p className="cal-month-title">{y}. {pad(m+1)}</p>
+      <div className="card cal-continuous">
         <div className="cal-dow-row">
           {DOW.map(d => <div className="cal-dow" key={d}>{d}</div>)}
         </div>
-        {weeks.map((weekDays, wi) => {
-          const dateStrs = weekDays.map(day => dateStrFor(y, m, day));
+        {segments.map((seg, si) => {
+          const [segY, segM] = seg.key ? seg.key.split("-").map(Number) : [null, null];
           return (
-            <div className="week-row" key={wi}>
-              <div className="cal-grid">
-                {weekDays.map((day, di) => {
-                  const dateStr = dateStrs[di];
-                  return (
-                    <div
-                      key={di}
-                      className={"cal-cell" + (!day ? " empty-cell" : "") + (dateStr===todayFull ? " today" : "") + (selectedDate===dateStr && day ? " picked" : "") + (dragOverDate===dateStr && day ? " drag-over" : "")}
-                      onClick={()=> day && setSelectedDate(dateStr)}
-                      onDragOver={e=>{ if(day) e.preventDefault(); }}
-                      onDragEnter={e=>{ if(day){ e.preventDefault(); setDragOverDate(dateStr); } }}
-                      onDragLeave={()=>{ if(dragOverDate===dateStr) setDragOverDate(null); }}
-                      onDrop={e=>{ if(day) handleCellDrop(e, dateStr); }}
-                    >
-                      {day && <span className="cal-date">{day}</span>}
-                      {day && (
-                        <div className="site-lane-wrap">
-                          {dayItems(dateStr, siteList).map((item, idx) => {
-                            const siteColor = siteColorMap[item.site.id];
-                            const titleText = `${item.site.name}${item.start && item.end ? ` 전체공사 (${item.start} ~ ${item.end})` : ""}`;
-                            const laneStyle = { flex: siteList.length ? `1 1 ${100/siteList.length}%` : "1", background: item.active ? siteColor + "48" : "transparent" };
-                            const tradeSlots = Array.from({length:3}, (_, i) => item.trades[i] || null);
-                            return (
-                              <div
-                                key={idx}
-                                className={"site-day-block" + (!item.active ? " empty-lane" : "")}
-                                style={laneStyle}
-                                title={item.active ? titleText : ""}
-                              >
-                                {item.trades.length>0 ? (
-                                  tradeSlots.map((tr, ti) => (
+            <div className={"cal-month-segment" + (si>0 ? " has-boundary" : "")} key={seg.key || si}>
+              {segM!==null && <span className="cal-month-watermark">{segM+1}</span>}
+              {seg.weekIndices.map(wi => {
+                const weekDays = weeks[wi];
+                const dateStrs = weekDays.map(c => c ? dateStrFor(c.y, c.m, c.day) : null);
+                return (
+                  <div className="week-row" key={wi}>
+                    <div className="cal-grid">
+                      {weekDays.map((cell, di) => {
+                        const dateStr = dateStrs[di];
+                        const isMonthStart = !!cell && cell.day===1;
+                        const showBoundary = isMonthStart && firstCellSeen;
+                        if(cell) firstCellSeen = true;
+                        const boundaryClass = showBoundary ? (di===0 ? " month-boundary-top" : " month-boundary-left") : "";
+                        return (
+                          <div
+                            key={di}
+                            className={"cal-cell" + (!cell ? " empty-cell" : "") + (dateStr===todayFull ? " today" : "") + (selectedDate===dateStr && cell ? " picked" : "") + (dragOverDate===dateStr && cell ? " drag-over" : "") + boundaryClass}
+                            onClick={()=> cell && setSelectedDate(dateStr)}
+                            onDragOver={e=>{ if(cell) e.preventDefault(); }}
+                            onDragEnter={e=>{ if(cell){ e.preventDefault(); setDragOverDate(dateStr); } }}
+                            onDragLeave={()=>{ if(dragOverDate===dateStr) setDragOverDate(null); }}
+                            onDrop={e=>{ if(cell) handleCellDrop(e, dateStr); }}
+                          >
+                            {cell && <span className="cal-date">{cell.day}</span>}
+                            {cell && (
+                              <div className="site-lane-wrap">
+                                {dayItems(dateStr, siteList).map((item, idx) => {
+                                  const siteColor = siteColorMap[item.site.id];
+                                  const titleText = `${item.site.name}${item.start && item.end ? ` 전체공사 (${item.start} ~ ${item.end})` : ""}`;
+                                  const laneStyle = { flex: siteList.length ? `1 1 ${100/siteList.length}%` : "1", background: item.active ? siteColor + "48" : "transparent" };
+                                  const tradeSlots = Array.from({length:3}, (_, i) => item.trades[i] || null);
+                                  return (
                                     <div
-                                      className={"trade-slot" + (tr ? "" : " trade-slot-empty")}
-                                      key={ti}
-                                      title={tr ? "" : "클릭해서 이 날짜에 공정 추가"}
-                                      onClick={tr ? undefined : (e=>{ e.stopPropagation(); setQuickAdd({siteId: item.site.id, date: dateStr}); })}
+                                      key={idx}
+                                      className={"site-day-block" + (!item.active ? " empty-lane" : "")}
+                                      style={laneStyle}
+                                      title={item.active ? titleText : ""}
                                     >
-                                      {tr && (
+                                      {item.trades.length>0 ? (
+                                        tradeSlots.map((tr, ti) => (
+                                          <div
+                                            className={"trade-slot" + (tr ? "" : " trade-slot-empty")}
+                                            key={ti}
+                                            title={tr ? "" : "클릭해서 이 날짜에 공정 추가"}
+                                            onClick={tr ? undefined : (e=>{ e.stopPropagation(); setQuickAdd({siteId: item.site.id, date: dateStr}); })}
+                                          >
+                                            {tr && (
+                                              <div
+                                                className="trade-day-chip"
+                                                style={{background: tr.trade.color}}
+                                                title={`${item.site.name} · ${tr.trade.name} (${tr.start} ~ ${tr.end}) — 드래그로 날짜 이동, 클릭하면 수정`}
+                                                draggable
+                                                onDragStart={e=>handleChipDragStart(e, tr.id, dateStr)}
+                                                onDragEnd={()=>setDragOverDate(null)}
+                                                onClick={e=>{ e.stopPropagation(); setEditingScheduleId(tr.id); }}
+                                              >
+                                                <span>{tr.trade.name}{tr.memo && `(${tr.memo})`}</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))
+                                      ) : item.active ? (
                                         <div
-                                          className="trade-day-chip"
-                                          style={{background: tr.trade.color}}
-                                          title={`${item.site.name} · ${tr.trade.name} (${tr.start} ~ ${tr.end}) — 드래그로 날짜 이동, 클릭하면 수정`}
-                                          draggable
-                                          onDragStart={e=>handleChipDragStart(e, tr.id, dateStr)}
-                                          onDragEnd={()=>setDragOverDate(null)}
-                                          onClick={e=>{ e.stopPropagation(); setEditingScheduleId(tr.id); }}
+                                          className="site-name-fill"
+                                          title="클릭해서 이 날짜에 공정 추가"
+                                          onClick={e=>{ e.stopPropagation(); setQuickAdd({siteId: item.site.id, date: dateStr}); }}
                                         >
-                                          <span>{tr.trade.name}{tr.memo && `(${tr.memo})`}</span>
+                                          {item.site.name}
                                         </div>
-                                      )}
+                                      ) : null}
                                     </div>
-                                  ))
-                                ) : item.active ? (
-                                  <div
-                                    className="site-name-fill"
-                                    title="클릭해서 이 날짜에 공정 추가"
-                                    onClick={e=>{ e.stopPropagation(); setQuickAdd({siteId: item.site.id, date: dateStr}); }}
-                                  >
-                                    {item.site.name}
-                                  </div>
-                                ) : null}
+                                  );
+                                })}
                               </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
           );
         })}
@@ -1440,10 +1500,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
 
       {view==="month" && (
         <>
-          <div className="cal-two-month">
-            {renderMonthCard(cursor)}
-            {renderMonthCard(addMonths(cursor, 1))}
-          </div>
+          {renderCalendarBlock([cursor, addMonths(cursor, 1)])}
 
           <div className="card cal-legend-card">
             <div className="cal-legend">
@@ -1487,10 +1544,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
           <div className="by-site-list">
             <div className="by-site-section">
               <div className="by-site-header" style={{background: siteColorMap[activeSite.id]}}>{activeSite.name}</div>
-              <div className="cal-two-month">
-                {renderMonthCard(cursor, [activeSite])}
-                {renderMonthCard(addMonths(cursor,1), [activeSite])}
-              </div>
+              {renderCalendarBlock([cursor, addMonths(cursor,1)], [activeSite])}
             </div>
           </div>
         );
