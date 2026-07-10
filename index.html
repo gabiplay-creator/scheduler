@@ -1431,11 +1431,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
           {(view==="month" || view==="bysite") && (
             <div className="cal-nav">
               <button onClick={()=>changeMonth(-1)}>‹</button>
-              <span className="cal-month">
-                {view==="month"
-                  ? `${cursor.y}.${pad(cursor.m+1)} - ${addMonths(cursor,1).y}.${pad(addMonths(cursor,1).m+1)}`
-                  : `${cursor.y}.${pad(cursor.m+1)}`}
-              </span>
+              <span className="cal-month">{cursor.y}.{pad(cursor.m+1)} - {addMonths(cursor,1).y}.{pad(addMonths(cursor,1).m+1)}</span>
               <button onClick={()=>changeMonth(1)}>›</button>
             </div>
           )}
@@ -1483,20 +1479,22 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
         </>
       )}
 
-      {view==="bysite" && (
-        <div className="by-site-list">
-          {(siteFilter==="all" ? [...sites].sort((a,b)=>(a.order??0)-(b.order??0)) : sites.filter(s=>s.id===siteFilter)).length===0 ? (
-            <div className="empty">등록된 현장이 없습니다.</div>
-          ) : (
-            (siteFilter==="all" ? [...sites].sort((a,b)=>(a.order??0)-(b.order??0)) : sites.filter(s=>s.id===siteFilter)).map(site => (
-              <div className="by-site-section" key={site.id}>
-                <div className="by-site-header" style={{background: siteColorMap[site.id]}}>{site.name}</div>
-                {renderMonthCard(cursor, [site])}
+      {view==="bysite" && (() => {
+        const orderedAll = [...sites].sort((a,b) => (a.order??0) - (b.order??0));
+        const activeSite = siteFilter==="all" ? orderedAll[0] : sites.find(s => s.id===siteFilter);
+        if(!activeSite) return <div className="empty">등록된 현장이 없습니다.</div>;
+        return (
+          <div className="by-site-list">
+            <div className="by-site-section">
+              <div className="by-site-header" style={{background: siteColorMap[activeSite.id]}}>{activeSite.name}</div>
+              <div className="cal-two-month">
+                {renderMonthCard(cursor, [activeSite])}
+                {renderMonthCard(addMonths(cursor,1), [activeSite])}
               </div>
-            ))
-          )}
-        </div>
-      )}
+            </div>
+          </div>
+        );
+      })()}
 
       {view==="agenda" && (
         <div className="card">
