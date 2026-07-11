@@ -272,6 +272,7 @@
   }
   .cal-cell.month-boundary-top{border-top:6px solid var(--accent) !important;}
   .cal-cell.month-boundary-left{border-left:6px solid var(--accent) !important;box-shadow:-2px 0 4px rgba(226,121,47,0.35);}
+  .cal-grid.row-boundary .cal-cell{border-top:6px solid var(--accent) !important;}
   .cal-legend-card{margin-top:14px;padding:14px 18px;}
   @media (max-width:900px){
     .app,.header-inner{width:1180px;}
@@ -328,9 +329,9 @@
   .site-name-fill:hover{opacity:1;background:rgba(226,121,47,0.18);}
   .cal-empty-add{
     flex:1;display:flex;align-items:center;justify-content:center;cursor:pointer;
-    font-size:10.5px;color:var(--ink-soft);opacity:0;transition:opacity .12s;border-radius:4px;
+    font-size:10.5px;color:var(--ink-soft);opacity:.4;transition:opacity .12s;border-radius:4px;
   }
-  .cal-cell:hover .cal-empty-add{opacity:.6;}
+  .cal-cell:hover .cal-empty-add{opacity:.75;}
   .cal-empty-add:hover{opacity:1 !important;background:rgba(226,121,47,0.15);color:var(--accent);font-weight:700;}
 
   .cal-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;}
@@ -1397,12 +1398,13 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
           return (
             <div className={"cal-month-segment" + (si>0 ? " has-boundary" : "")} key={seg.key || si}>
               {segM!==null && <span className="cal-month-watermark">{segM+1}</span>}
-              {seg.weekIndices.map(wi => {
+              {seg.weekIndices.map((wi, wiIdx) => {
                 const weekDays = weeks[wi];
                 const dateStrs = weekDays.map(c => c ? dateStrFor(c.y, c.m, c.day) : null);
+                const isSegmentStartRow = si>0 && wiIdx===0;
                 return (
                   <div className="week-row" key={wi}>
-                    <div className="cal-grid">
+                    <div className={"cal-grid" + (isSegmentStartRow ? " row-boundary" : "")}>
                       {weekDays.map((cell, di) => {
                         const dateStr = dateStrs[di];
                         const isMonthStart = !!cell && cell.day===1;
@@ -1422,7 +1424,8 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                             {cell && <span className="cal-date">{cell.day}</span>}
                             {cell && (() => {
                               const items = dayItems(dateStr, siteList);
-                              if(items.length===0){
+                              const hasAnyActive = items.some(item => item.active);
+                              if(!hasAnyActive){
                                 return (
                                   <div
                                     className="cal-empty-add"
