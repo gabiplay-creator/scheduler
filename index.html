@@ -265,13 +265,14 @@
   .by-site-section .cal-continuous{border:none;border-radius:0;box-shadow:none;padding:16px;}
   .cal-continuous{padding:16px;}
   .cal-month-segment{position:relative;}
-  .cal-month-segment.month-tint .cal-cell:not(.empty-cell){background:#EEE8D9;}
+  .cal-cell.month-tint-cell:not(.empty-cell){background:#EEE8D9;}
+  .cal-cell.month-boundary-top{border-top:5px solid #000 !important;}
+  .cal-cell.month-boundary-left{border-left:5px solid #000 !important;}
   .cal-month-watermark{
     position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
     font-family:var(--mono);font-weight:800;font-size:min(18vw,220px);line-height:1;
     color:var(--navy-deep);opacity:.13;pointer-events:none;z-index:3;user-select:none;white-space:nowrap;
   }
-  .cal-grid.row-boundary .cal-cell{border-top:5px solid #000 !important;}
   .cal-legend-card{margin-top:14px;padding:14px 18px;}
   @media (max-width:900px){
     .app,.header-inner{width:1180px;}
@@ -1367,23 +1368,25 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   function renderCalendarBlock(monthCursors, sitesOverride){
     const weeks = buildContinuousWeeks(monthCursors);
     const siteList = sitesOverride || relevantSites;
+    const monthKeyOf = cell => cell ? `${cell.y}-${cell.m}` : null;
 
-    // group weeks into per-month segments: a new segment (and its boundary line)
-    // starts at the week that first contains that month's 1st day — not simply
-    // whichever month has more cells in a given week — so the line lands exactly
-    // where a new month actually begins, and every week fully belongs to one segment
+    // segments are only used to place the big faint month-number watermark —
+    // approximate centering is fine there. Actual tinting and the boundary line
+    // are computed per cell below, directly from each cell's own date, so a row
+    // that's mostly one month never gets mis-tinted by a single day from the next.
+    const weekMonthKey = week => {
+      const counts = {};
+      week.forEach(c => { if(c){ const k = monthKeyOf(c); counts[k] = (counts[k]||0)+1; } });
+      let best = null, bestCount = 0;
+      Object.entries(counts).forEach(([k,v]) => { if(v>bestCount){ best=k; bestCount=v; } });
+      return best;
+    };
     const segments = [];
     weeks.forEach((week, wi) => {
-      const runningKey = segments.length ? segments[segments.length-1].key : null;
-      const newMonthCell = week.find(c => c && c.day===1 && (runningKey===null || `${c.y}-${c.m}`!==runningKey));
-      if(newMonthCell){
-        segments.push({ key: `${newMonthCell.y}-${newMonthCell.m}`, weekIndices:[wi] });
-      } else if(segments.length===0){
-        const anyCell = week.find(c => c);
-        segments.push({ key: anyCell ? `${anyCell.y}-${anyCell.m}` : null, weekIndices:[wi] });
-      } else {
-        segments[segments.length-1].weekIndices.push(wi);
-      }
+      const key = weekMonthKey(week);
+      const last = segments[segments.length-1];
+      if(last && last.key===key) last.weekIndices.push(wi);
+      else segments.push({ key, weekIndices:[wi] });
     });
 
     return (
@@ -1394,21 +1397,25 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
         {segments.map((seg, si) => {
           const [segY, segM] = seg.key ? seg.key.split("-").map(Number) : [null, null];
           return (
-            <div className={"cal-month-segment" + (si%2===1 ? " month-tint" : "")} key={seg.key || si}>
+            <div className="cal-month-segment" key={seg.key || si}>
               {segM!==null && <span className="cal-month-watermark">{segM+1}</span>}
-              {seg.weekIndices.map((wi, wiIdx) => {
+              {seg.weekIndices.map(wi => {
                 const weekDays = weeks[wi];
                 const dateStrs = weekDays.map(c => c ? dateStrFor(c.y, c.m, c.day) : null);
-                const isSegmentStartRow = si>0 && wiIdx===0;
                 return (
                   <div className="week-row" key={wi}>
-                    <div className={"cal-grid" + (isSegmentStartRow ? " row-boundary" : "")}>
+                    <div className="cal-grid">
                       {weekDays.map((cell, di) => {
                         const dateStr = dateStrs[di];
+                        const aboveCell = wi>0 ? weeks[wi-1][di] : null;
+                        const leftCell = di>0 ? weekDays[di-1] : null;
+                        const topBoundary = cell && aboveCell && monthKeyOf(cell)!==monthKeyOf(aboveCell);
+                        const leftBoundary = cell && leftCell && monthKeyOf(cell)!==monthKeyOf(leftCell);
+                        const tintOn = cell && cell.m % 2 === 1;
                         return (
                           <div
                             key={di}
-                            className={"cal-cell" + (!cell ? " empty-cell" : "") + (dateStr===todayFull ? " today" : "") + (selectedDate===dateStr && cell ? " picked" : "") + (dragOverDate===dateStr && cell ? " drag-over" : "")}
+                            className={"cal-cell" + (!cell ? " empty-cell" : "") + (tintOn ? " month-tint-cell" : "") + (dateStr===todayFull ? " today" : "") + (selectedDate===dateStr && cell ? " picked" : "") + (dragOverDate===dateStr && cell ? " drag-over" : "") + (topBoundary ? " month-boundary-top" : "") + (leftBoundary ? " month-boundary-left" : "")}
                             onClick={()=> cell && setSelectedDate(dateStr)}
                             onDragOver={e=>{ if(cell) e.preventDefault(); }}
                             onDragEnter={e=>{ if(cell){ e.preventDefault(); setDragOverDate(dateStr); } }}
