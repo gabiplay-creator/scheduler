@@ -270,9 +270,7 @@
     font-family:var(--mono);font-weight:800;font-size:min(18vw,220px);line-height:1;
     color:var(--navy-deep);opacity:.13;pointer-events:none;z-index:3;user-select:none;white-space:nowrap;
   }
-  .cal-cell.month-boundary-top{border-top:6px solid var(--accent) !important;}
-  .cal-cell.month-boundary-left{border-left:6px solid var(--accent) !important;box-shadow:-2px 0 4px rgba(226,121,47,0.35);}
-  .cal-grid.row-boundary .cal-cell{border-top:6px solid var(--accent) !important;}
+  .cal-grid.row-boundary .cal-cell{border-top:5px solid #000 !important;}
   .cal-legend-card{margin-top:14px;padding:14px 18px;}
   @media (max-width:900px){
     .app,.header-inner{width:1180px;}
@@ -1369,24 +1367,23 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
     const weeks = buildContinuousWeeks(monthCursors);
     const siteList = sitesOverride || relevantSites;
 
-    // group consecutive weeks by whichever month has the most cells in that week,
-    // so each month's rows can be wrapped for a centered watermark number
-    const weekMonthKey = week => {
-      const counts = {};
-      week.forEach(c => { if(c){ const k = `${c.y}-${c.m}`; counts[k] = (counts[k]||0)+1; } });
-      let best = null, bestCount = 0;
-      Object.entries(counts).forEach(([k,v]) => { if(v>bestCount){ best=k; bestCount=v; } });
-      return best;
-    };
+    // group weeks into per-month segments: a new segment (and its boundary line)
+    // starts at the week that first contains that month's 1st day — not simply
+    // whichever month has more cells in a given week — so the line lands exactly
+    // where a new month actually begins, and every week fully belongs to one segment
     const segments = [];
     weeks.forEach((week, wi) => {
-      const key = weekMonthKey(week);
-      const last = segments[segments.length-1];
-      if(last && last.key===key) last.weekIndices.push(wi);
-      else segments.push({ key, weekIndices:[wi] });
+      const runningKey = segments.length ? segments[segments.length-1].key : null;
+      const newMonthCell = week.find(c => c && c.day===1 && (runningKey===null || `${c.y}-${c.m}`!==runningKey));
+      if(newMonthCell){
+        segments.push({ key: `${newMonthCell.y}-${newMonthCell.m}`, weekIndices:[wi] });
+      } else if(segments.length===0){
+        const anyCell = week.find(c => c);
+        segments.push({ key: anyCell ? `${anyCell.y}-${anyCell.m}` : null, weekIndices:[wi] });
+      } else {
+        segments[segments.length-1].weekIndices.push(wi);
+      }
     });
-
-    let firstCellSeen = false;
 
     return (
       <div className="card cal-continuous">
@@ -1396,7 +1393,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
         {segments.map((seg, si) => {
           const [segY, segM] = seg.key ? seg.key.split("-").map(Number) : [null, null];
           return (
-            <div className={"cal-month-segment" + (si>0 ? " has-boundary" : "")} key={seg.key || si}>
+            <div className="cal-month-segment" key={seg.key || si}>
               {segM!==null && <span className="cal-month-watermark">{segM+1}</span>}
               {seg.weekIndices.map((wi, wiIdx) => {
                 const weekDays = weeks[wi];
@@ -1407,14 +1404,10 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                     <div className={"cal-grid" + (isSegmentStartRow ? " row-boundary" : "")}>
                       {weekDays.map((cell, di) => {
                         const dateStr = dateStrs[di];
-                        const isMonthStart = !!cell && cell.day===1;
-                        const showBoundary = isMonthStart && firstCellSeen;
-                        if(cell) firstCellSeen = true;
-                        const boundaryClass = showBoundary ? (di===0 ? " month-boundary-top" : " month-boundary-left") : "";
                         return (
                           <div
                             key={di}
-                            className={"cal-cell" + (!cell ? " empty-cell" : "") + (dateStr===todayFull ? " today" : "") + (selectedDate===dateStr && cell ? " picked" : "") + (dragOverDate===dateStr && cell ? " drag-over" : "") + boundaryClass}
+                            className={"cal-cell" + (!cell ? " empty-cell" : "") + (dateStr===todayFull ? " today" : "") + (selectedDate===dateStr && cell ? " picked" : "") + (dragOverDate===dateStr && cell ? " drag-over" : "")}
                             onClick={()=> cell && setSelectedDate(dateStr)}
                             onDragOver={e=>{ if(cell) e.preventDefault(); }}
                             onDragEnter={e=>{ if(cell){ e.preventDefault(); setDragOverDate(dateStr); } }}
