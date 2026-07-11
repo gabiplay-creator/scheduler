@@ -326,6 +326,12 @@
     opacity:.75;cursor:pointer;border-radius:2px;
   }
   .site-name-fill:hover{opacity:1;background:rgba(226,121,47,0.18);}
+  .cal-empty-add{
+    flex:1;display:flex;align-items:center;justify-content:center;cursor:pointer;
+    font-size:10.5px;color:var(--ink-soft);opacity:0;transition:opacity .12s;border-radius:4px;
+  }
+  .cal-cell:hover .cal-empty-add{opacity:.6;}
+  .cal-empty-add:hover{opacity:1 !important;background:rgba(226,121,47,0.15);color:var(--accent);font-weight:700;}
 
   .cal-legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;}
   .legend-item{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink-soft);}
@@ -969,7 +975,9 @@ function SiteDetailModal({ site, trades, schedules, onClose, onUpdateSite, onAdd
   );
 }
 
-function QuickAddScheduleModal({ site, trades, initialDate, onClose, onAdd }){
+function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onClose, onAdd }){
+  const [siteId, setSiteId] = useState(initialSiteId || sites[0]?.id || "");
+  const site = sites.find(s => s.id===siteId);
   const [tradeId, setTradeId] = useState(trades[0]?.id || "");
   const trade = trades.find(t => t.id===tradeId);
   const [startDate, setStartDate] = useState(initialDate);
@@ -987,9 +995,10 @@ function QuickAddScheduleModal({ site, trades, initialDate, onClose, onAdd }){
     if(endDate < v) setEndDate(v);
   }
   function submit(){
+    if(!siteId){ alert("현장을 선택해주세요."); return; }
     if(!tradeId){ alert("공정을 선택해주세요."); return; }
     if(!startDate || !endDate){ alert("시작일과 종료일을 입력해주세요."); return; }
-    onAdd({ tradeId, startDate, endDate: endDate<startDate ? startDate : endDate, contactId, memo });
+    onAdd(siteId, { tradeId, startDate, endDate: endDate<startDate ? startDate : endDate, contactId, memo });
   }
 
   return (
@@ -998,12 +1007,20 @@ function QuickAddScheduleModal({ site, trades, initialDate, onClose, onAdd }){
         <div className="modal-head">
           <div>
             <p className="eyebrow">ADD SCHEDULE</p>
-            <h3>{site.name}</h3>
+            <h3>{initialSiteId ? site?.name : "일정 추가"}</h3>
           </div>
           <button className="close-x" onClick={onClose}>✕</button>
         </div>
 
         <div className="row2">
+          {!initialSiteId && (
+            <div className="field" style={{gridColumn:"1 / -1"}}>
+              <label>현장</label>
+              <select value={siteId} onChange={e=>setSiteId(e.target.value)}>
+                {sites.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+          )}
           <div className="field">
             <label>공정</label>
             <select value={tradeId} onChange={e=>handleTradeChange(e.target.value)}>
@@ -1026,7 +1043,7 @@ function QuickAddScheduleModal({ site, trades, initialDate, onClose, onAdd }){
           </div>
           <div className="field" style={{gridColumn:"1 / -1"}}>
             <label>메모</label>
-            <input type="text" value={memo} onChange={e=>setMemo(e.target.value)} placeholder="예: 실측 약속, 오전 시공 등" />
+            <input type="text" value={memo} onChange={e=>setMemo(e.target.value)} placeholder="예: 자재 주문, 실측 방문 등" />
           </div>
         </div>
 
@@ -1403,9 +1420,22 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                             onDrop={e=>{ if(cell) handleCellDrop(e, dateStr); }}
                           >
                             {cell && <span className="cal-date">{cell.day}</span>}
-                            {cell && (
+                            {cell && (() => {
+                              const items = dayItems(dateStr, siteList);
+                              if(items.length===0){
+                                return (
+                                  <div
+                                    className="cal-empty-add"
+                                    title="클릭해서 이 날짜에 미리 일정 추가"
+                                    onClick={e=>{ e.stopPropagation(); setQuickAdd({siteId:null, date:dateStr}); }}
+                                  >
+                                    + 일정 추가
+                                  </div>
+                                );
+                              }
+                              return (
                               <div className="site-lane-wrap">
-                                {dayItems(dateStr, siteList).map((item, idx) => {
+                                {items.map((item, idx) => {
                                   const siteColor = siteColorMap[item.site.id];
                                   const titleText = `${item.site.name}${item.start && item.end ? ` 전체공사 (${item.start} ~ ${item.end})` : ""}`;
                                   const laneStyle = { flex: siteList.length ? `1 1 ${100/siteList.length}%` : "1", background: item.active ? siteColor + "48" : "transparent" };
@@ -1453,7 +1483,8 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                   );
                                 })}
                               </div>
-                            )}
+                              );
+                            })()}
                           </div>
                         );
                       })}
@@ -1612,19 +1643,16 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
         );
       })()}
 
-      {quickAdd && (() => {
-        const site = siteById[quickAdd.siteId];
-        if(!site) return null;
-        return (
-          <QuickAddScheduleModal
-            site={site}
-            trades={trades}
-            initialDate={quickAdd.date}
-            onClose={()=>setQuickAdd(null)}
-            onAdd={sc => { setSchedules(prev => [...prev, { ...sc, id: uid(), siteId: site.id }]); setQuickAdd(null); }}
-          />
-        );
-      })()}
+      {quickAdd && sites.length>0 && (
+        <QuickAddScheduleModal
+          sites={sites}
+          initialSiteId={quickAdd.siteId}
+          trades={trades}
+          initialDate={quickAdd.date}
+          onClose={()=>setQuickAdd(null)}
+          onAdd={(siteId, sc) => { setSchedules(prev => [...prev, { ...sc, id: uid(), siteId }]); setQuickAdd(null); }}
+        />
+      )}
     </div>
   );
 }
