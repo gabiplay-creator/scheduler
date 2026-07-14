@@ -255,6 +255,28 @@
   .cal-nav button{background:var(--card);border:1px solid var(--paper-line);border-radius:8px;width:32px;height:32px;font-size:15px;}
   .cal-month{font-size:16px;font-weight:800;font-family:var(--mono);min-width:110px;text-align:center;}
   .cal-filter select{padding:8px 10px;border-radius:8px;border:1px solid var(--paper-line);font-size:13px;background:var(--card);}
+  .site-multiselect{position:relative;}
+  .site-multiselect-btn{
+    padding:8px 12px;border-radius:8px;border:1px solid var(--paper-line);font-size:13px;background:var(--card);
+    cursor:pointer;white-space:nowrap;font-weight:600;color:var(--ink);
+  }
+  .site-multiselect-btn:hover{border-color:var(--steel);}
+  .site-multiselect-panel{
+    position:absolute;top:calc(100% + 6px);left:0;z-index:20;background:var(--card);
+    border:1px solid var(--paper-line);border-radius:10px;box-shadow:0 8px 20px rgba(22,35,63,0.15);
+    padding:10px;min-width:220px;max-height:280px;overflow-y:auto;
+  }
+  .site-multiselect-actions{display:flex;gap:6px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--paper-line);}
+  .site-multiselect-actions button{
+    flex:1;font-size:11.5px;padding:5px 6px;border-radius:6px;border:1px solid var(--paper-line);background:var(--paper);cursor:pointer;color:var(--ink-soft);
+  }
+  .site-multiselect-actions button:hover{border-color:var(--steel);color:var(--navy);}
+  .site-multiselect-item{
+    display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 4px;border-radius:6px;cursor:pointer;
+  }
+  .site-multiselect-item:hover{background:var(--paper);}
+  .site-multiselect-item input{cursor:pointer;}
+  .site-multiselect-empty{font-size:12.5px;color:var(--ink-soft);padding:6px 4px;}
   .cal-dow-row{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:14px;}
   .cal-dow{font-family:var(--mono);font-size:11px;color:var(--ink-soft);text-align:center;padding-bottom:4px;letter-spacing:.05em;}
   .by-site-list{display:flex;flex-direction:column;gap:22px;}
@@ -289,6 +311,9 @@
   .cal-cell.drag-over{border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--accent);background:var(--accent-soft);}
   .cal-cell:hover:not(.empty-cell){border-color:var(--steel);}
   .cal-date{font-family:var(--mono);font-size:11px;color:var(--ink-soft);padding:4px 5px 2px;display:block;line-height:1;}
+  .cal-date-sun{color:#C0392B;}
+  .cal-date-sat{color:#1B5E86;}
+  .cal-dow-inline{font-size:9px;margin-left:3px;opacity:.85;}
   .gantt-bar{
     height:15px;border-radius:0;flex-shrink:0;display:flex;align-items:center;overflow:hidden;box-sizing:border-box;
   }
@@ -1199,14 +1224,67 @@ function FileViewerModal({ file, onClose }){
 }
 
 /* ---------- Calendar tab ---------- */
+function SiteMultiSelect({ sites, selectedSiteIds, onChange }){
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function handleOutside(e){ if(ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
+
+  const allSelected = selectedSiteIds===null;
+  const isChecked = id => allSelected || selectedSiteIds.includes(id);
+  const selectedCount = allSelected ? sites.length : selectedSiteIds.length;
+  const label = sites.length===0 ? "현장 없음"
+    : allSelected ? "전체 현장"
+    : selectedCount===0 ? "현장 선택"
+    : selectedCount===1 ? sites.find(s=>isChecked(s.id))?.name || "1개 현장"
+    : `현장 ${selectedCount}개 선택`;
+
+  function toggleSite(id){
+    if(allSelected){
+      onChange(sites.map(s=>s.id).filter(sid=>sid!==id));
+    } else {
+      const next = selectedSiteIds.includes(id) ? selectedSiteIds.filter(x=>x!==id) : [...selectedSiteIds, id];
+      onChange(next.length===sites.length ? null : next);
+    }
+  }
+
+  return (
+    <div className="site-multiselect" ref={ref}>
+      <button type="button" className="site-multiselect-btn" onClick={()=>setOpen(o=>!o)}>{label} ▾</button>
+      {open && (
+        <div className="site-multiselect-panel">
+          <div className="site-multiselect-actions">
+            <button type="button" onClick={()=>onChange(null)}>전체 선택</button>
+            <button type="button" onClick={()=>onChange([])}>전체 해제</button>
+          </div>
+          {sites.length===0 ? (
+            <p className="site-multiselect-empty">등록된 현장이 없습니다</p>
+          ) : sites.map(s => (
+            <label className="site-multiselect-item" key={s.id}>
+              <input type="checkbox" checked={isChecked(s.id)} onChange={()=>toggleSite(s.id)} />
+              {s.name}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CalendarTab({ sites, trades, schedules, setSchedules }){
   const [view, setView] = useState("month"); // "month" | "agenda"
   const [cursor, setCursor] = useState(() => { const d = new Date(); return {y: d.getFullYear(), m: d.getMonth()}; });
-  const [siteFilter, setSiteFilter] = useState("all");
+  const [selectedSiteIds, setSelectedSiteIds] = useState(null); // null = all sites; otherwise array of selected site ids
   const [selectedDate, setSelectedDate] = useState(null); // full "YYYY-MM-DD" string, or null
   const [dragOverDate, setDragOverDate] = useState(null);
   const [editingScheduleId, setEditingScheduleId] = useState(null);
   const [quickAdd, setQuickAdd] = useState(null); // { siteId, date } or null
+
+  const isSiteSelected = siteId => selectedSiteIds===null || selectedSiteIds.includes(siteId);
 
   function handleChipDragStart(e, scheduleId, originDate){
     e.stopPropagation();
@@ -1236,7 +1314,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   const tradeById = useMemo(() => Object.fromEntries(trades.map(t=>[t.id,t])), [trades]);
   const siteById = useMemo(() => Object.fromEntries(sites.map(s=>[s.id,s])), [sites]);
 
-  const filtered = schedules.filter(sc => siteFilter==="all" || sc.siteId===siteFilter);
+  const filtered = schedules.filter(sc => isSiteSelected(sc.siteId));
 
   function addMonths({y, m}, delta){
     let nm = m + delta, ny = y;
@@ -1290,9 +1368,9 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   }
 
   const projectItems = useMemo(() => sites
-    .filter(s => (siteFilter==="all" || s.id===siteFilter) && s.projectStart && s.projectEnd)
+    .filter(s => isSiteSelected(s.id) && s.projectStart && s.projectEnd)
     .map(s => ({ id:"proj-"+s.id, isProject:true, siteId:s.id, tradeId:null, startDate:s.projectStart, endDate:s.projectEnd })),
-    [sites, siteFilter]);
+    [sites, selectedSiteIds]);
 
   // a distinct color per site for the overall-project header bar (stable regardless of filter)
   const siteColorMap = useMemo(() => Object.fromEntries(
@@ -1300,9 +1378,9 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   ), [sites]);
 
   const relevantSites = useMemo(() => sites
-    .filter(s => siteFilter==="all" || s.id===siteFilter)
+    .filter(s => isSiteSelected(s.id))
     .sort((a,b) => (a.order??0) - (b.order??0)),
-    [sites, siteFilter]);
+    [sites, selectedSiteIds]);
 
   // display range for each site's header bar: its registered project period, or (if none
   // was set) the span from its earliest to latest trade schedule
@@ -1392,7 +1470,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
     return (
       <div className="card cal-continuous">
         <div className="cal-dow-row">
-          {DOW.map(d => <div className="cal-dow" key={d}>{d}</div>)}
+          {DOW.map((d,i) => <div className={"cal-dow" + (i===0?" cal-date-sun":"") + (i===6?" cal-date-sat":"")} key={d}>{d}</div>)}
         </div>
         {segments.map((seg, si) => {
           const [segY, segM] = seg.key ? seg.key.split("-").map(Number) : [null, null];
@@ -1422,7 +1500,11 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                             onDragLeave={()=>{ if(dragOverDate===dateStr) setDragOverDate(null); }}
                             onDrop={e=>{ if(cell) handleCellDrop(e, dateStr); }}
                           >
-                            {cell && <span className="cal-date">{cell.day}</span>}
+                            {cell && (
+                              <span className={"cal-date" + (di===0 ? " cal-date-sun" : "") + (di===6 ? " cal-date-sat" : "")}>
+                                {cell.day}<span className="cal-dow-inline">{DOW[di]}</span>
+                              </span>
+                            )}
                             {cell && (() => {
                               const items = dayItems(dateStr, siteList);
                               const hasAnyActive = items.some(item => item.active);
@@ -1517,10 +1599,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
             <button className={view==="agenda"?"active":""} onClick={()=>setView("agenda")}>전체 목록형</button>
           </div>
           <div className="cal-filter">
-            <select value={siteFilter} onChange={e=>{setSiteFilter(e.target.value); setSelectedDate(null);}}>
-              <option value="all">전체 현장</option>
-              {sites.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}
-            </select>
+            <SiteMultiSelect sites={sites} selectedSiteIds={selectedSiteIds} onChange={ids=>{setSelectedSiteIds(ids); setSelectedDate(null);}} />
           </div>
           {(view==="month" || view==="bysite") && (
             <div className="cal-nav">
@@ -1572,8 +1651,8 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
 
       {view==="bysite" && (() => {
         const orderedAll = [...sites].sort((a,b) => (a.order??0) - (b.order??0));
-        const activeSite = siteFilter==="all" ? orderedAll[0] : sites.find(s => s.id===siteFilter);
-        if(!activeSite) return <div className="empty">등록된 현장이 없습니다.</div>;
+        const activeSite = orderedAll.find(s => isSiteSelected(s.id));
+        if(!activeSite) return <div className="empty">선택된 현장이 없습니다. 위 현장 선택에서 하나 이상 선택해주세요.</div>;
         return (
           <div className="by-site-list">
             <div className="by-site-section">
