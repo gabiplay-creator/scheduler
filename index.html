@@ -290,6 +290,8 @@
   .cal-cell.month-tint-cell:not(.empty-cell){background:#EEE8D9;}
   .cal-cell.month-boundary-top{border-top:3px solid var(--navy) !important;}
   .cal-cell.month-boundary-left{border-left:3px solid var(--navy) !important;}
+  .week-row.week-stripe-a .cal-cell{border-top:2px solid #B7CBDC;}
+  .week-row.week-stripe-b .cal-cell{border-top:2px solid #D9C9A6;}
   .cal-month-watermark{
     position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
     font-family:var(--mono);font-weight:800;font-size:min(18vw,220px);line-height:1;
@@ -648,8 +650,9 @@ function App(){
           <div className="tabs">
             <button className={"tab" + (tab==="sites"?" active":"")} onClick={()=>setTab("sites")}>현장관리</button>
             <button className={"tab" + (tab==="calendar"?" active":"")} onClick={()=>setTab("calendar")}>공사캘린더</button>
-            <button className={"tab" + (tab==="contacts"?" active":"")} onClick={()=>setTab("contacts")}>담당자관리</button>
-            <button className={"tab" + (tab==="vendors"?" active":"")} onClick={()=>setTab("vendors")}>거래처관리</button>
+            <button className={"tab" + (tab==="contacts"?" active":"")} onClick={()=>setTab("contacts")}>거래처관리</button>
+            <button className={"tab" + (tab==="vendors"?" active":"")} onClick={()=>setTab("vendors")}>기타거래처</button>
+            <button className={"tab" + (tab==="labor"?" active":"")} onClick={()=>setTab("labor")}>담당자관리</button>
           </div>
         </div>
         <div className="ruler">{rulerTicks.map((_,i)=><span key={i}/>)}</div>
@@ -667,6 +670,9 @@ function App(){
         )}
         {tab==="vendors" && (
           <VendorsTab vendors={vendors} setVendors={setVendors} />
+        )}
+        {tab==="labor" && (
+          <LaborTab trades={trades} sites={sites} schedules={schedules} />
         )}
       </div>
 
@@ -1009,6 +1015,7 @@ function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onCl
   const [startDate, setStartDate] = useState(initialDate);
   const [endDate, setEndDate] = useState(initialDate);
   const [contactId, setContactId] = useState(trade?.contacts[0]?.id || "");
+  const [laborUnits, setLaborUnits] = useState("");
   const [memo, setMemo] = useState("");
 
   function handleTradeChange(id){
@@ -1024,7 +1031,7 @@ function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onCl
     if(!siteId){ alert("현장을 선택해주세요."); return; }
     if(!tradeId){ alert("공정을 선택해주세요."); return; }
     if(!startDate || !endDate){ alert("시작일과 종료일을 입력해주세요."); return; }
-    onAdd(siteId, { tradeId, startDate, endDate: endDate<startDate ? startDate : endDate, contactId, memo });
+    onAdd(siteId, { tradeId, startDate, endDate: endDate<startDate ? startDate : endDate, contactId, laborUnits: laborUnits==="" ? null : Number(laborUnits), memo });
   }
 
   return (
@@ -1067,6 +1074,10 @@ function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onCl
             <label>종료일 (총 기간)</label>
             <input type="date" value={endDate} min={startDate} onChange={e=>setEndDate(e.target.value)} />
           </div>
+          <div className="field">
+            <label>품수 (0.5 단위)</label>
+            <input type="number" step="0.5" min="0" value={laborUnits} onChange={e=>setLaborUnits(e.target.value)} placeholder="예: 1.5" />
+          </div>
           <div className="field" style={{gridColumn:"1 / -1"}}>
             <label>메모</label>
             <input type="text" value={memo} onChange={e=>setMemo(e.target.value)} placeholder="예: 자재 주문, 실측 방문 등" />
@@ -1087,6 +1098,7 @@ function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete })
   const [startDate, setStartDate] = useState(range.start);
   const [endDate, setEndDate] = useState(range.end);
   const [contactId, setContactId] = useState(schedule.contactId || trade?.contacts[0]?.id || "");
+  const [laborUnits, setLaborUnits] = useState(schedule.laborUnits!=null ? String(schedule.laborUnits) : "");
   const [memo, setMemo] = useState(schedule.memo || "");
 
   function handleStartChange(v){
@@ -1095,7 +1107,7 @@ function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete })
   }
   function submit(){
     if(!startDate || !endDate){ alert("시작일과 종료일을 입력해주세요."); return; }
-    onSave({ startDate, endDate: endDate<startDate ? startDate : endDate, contactId, memo });
+    onSave({ startDate, endDate: endDate<startDate ? startDate : endDate, contactId, laborUnits: laborUnits==="" ? null : Number(laborUnits), memo });
   }
 
   return (
@@ -1125,6 +1137,10 @@ function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete })
             </select>
           </div>
           <div className="field">
+            <label>품수 (0.5 단위)</label>
+            <input type="number" step="0.5" min="0" value={laborUnits} onChange={e=>setLaborUnits(e.target.value)} placeholder="예: 1.5" />
+          </div>
+          <div className="field" style={{gridColumn:"1 / -1"}}>
             <label>메모</label>
             <input type="text" value={memo} onChange={e=>setMemo(e.target.value)} placeholder="예: 실측 약속, 오전 시공 등" />
           </div>
@@ -1146,6 +1162,7 @@ function AddScheduleInline({ trade, onCancel, onAdd }){
   const [startDate, setStartDate] = useState(todayStr());
   const [endDate, setEndDate] = useState(todayStr());
   const [contactId, setContactId] = useState(trade.contacts[0]?.id || "");
+  const [laborUnits, setLaborUnits] = useState("");
   const [memo, setMemo] = useState("");
 
   function handleStartChange(v){
@@ -1155,7 +1172,7 @@ function AddScheduleInline({ trade, onCancel, onAdd }){
 
   function submit(){
     if(!startDate || !endDate){ alert("시작일과 종료일을 입력해주세요."); return; }
-    onAdd({ startDate, endDate: endDate < startDate ? startDate : endDate, contactId, memo });
+    onAdd({ startDate, endDate: endDate < startDate ? startDate : endDate, contactId, laborUnits: laborUnits==="" ? null : Number(laborUnits), memo });
   }
 
   return (
@@ -1175,6 +1192,10 @@ function AddScheduleInline({ trade, onCancel, onAdd }){
         </select>
       </div>
       <div className="field" style={{marginBottom:0}}>
+        <label>품수 (0.5 단위)</label>
+        <input type="number" step="0.5" min="0" value={laborUnits} onChange={e=>setLaborUnits(e.target.value)} placeholder="예: 1.5" />
+      </div>
+      <div className="field" style={{gridColumn:"1 / -1", marginBottom:0}}>
         <label>메모</label>
         <input type="text" value={memo} onChange={e=>setMemo(e.target.value)} placeholder="예: 실측 약속, 오전 시공 등" />
       </div>
@@ -1279,6 +1300,8 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   const [view, setView] = useState("month"); // "month" | "agenda"
   const [cursor, setCursor] = useState(() => { const d = new Date(); return {y: d.getFullYear(), m: d.getMonth()}; });
   const [selectedSiteIds, setSelectedSiteIds] = useState(null); // null = all sites; otherwise array of selected site ids
+  const [chipStyle, setChipStyle] = useState(() => loadLS("scheduler:chipStyle", "fill")); // "fill" | "text"
+  useEffect(() => saveLS("scheduler:chipStyle", chipStyle), [chipStyle]);
   const [selectedDate, setSelectedDate] = useState(null); // full "YYYY-MM-DD" string, or null
   const [dragOverDate, setDragOverDate] = useState(null);
   const [editingScheduleId, setEditingScheduleId] = useState(null);
@@ -1415,7 +1438,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
           })());
           if(!sc) return null;
           const r = scheduleRange(sc);
-          return { trade:t, start:r.start, end:r.end, id: sc.id, siteId: site.id, memo: sc.memo };
+          return { trade:t, start:r.start, end:r.end, id: sc.id, siteId: site.id, memo: sc.memo, laborUnits: sc.laborUnits };
         })
         .filter(Boolean);
       return { site, active: !!headerActive || siteTradesToday.length>0, start:range?.start, end:range?.end, trades:siteTradesToday };
@@ -1480,8 +1503,9 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
               {seg.weekIndices.map(wi => {
                 const weekDays = weeks[wi];
                 const dateStrs = weekDays.map(c => c ? dateStrFor(c.y, c.m, c.day) : null);
+                const weekParity = wi % 2 === 0 ? " week-stripe-a" : " week-stripe-b";
                 return (
-                  <div className="week-row" key={wi}>
+                  <div className={"week-row" + weekParity} key={wi}>
                     <div className="cal-grid">
                       {weekDays.map((cell, di) => {
                         const dateStr = dateStrs[di];
@@ -1543,15 +1567,17 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                           >
                                             {tr && (
                                               <div
-                                                className="trade-day-chip"
-                                                style={{background: tr.trade.color}}
+                                                className={"trade-day-chip" + (chipStyle==="text" ? " chip-text-mode" : "")}
+                                                style={chipStyle==="text" ? {background:"#fff", border:`2px solid ${tr.trade.color}`} : {background: tr.trade.color}}
                                                 title={`${item.site.name} · ${tr.trade.name} (${tr.start} ~ ${tr.end}) — 드래그로 날짜 이동, 클릭하면 수정`}
                                                 draggable
                                                 onDragStart={e=>handleChipDragStart(e, tr.id, dateStr)}
                                                 onDragEnd={()=>setDragOverDate(null)}
                                                 onClick={e=>{ e.stopPropagation(); setEditingScheduleId(tr.id); }}
                                               >
-                                                <span>{tr.trade.name}{tr.memo && `(${tr.memo})`}</span>
+                                                <span style={chipStyle==="text" ? {color: tr.trade.color} : {}}>
+                                                  {tr.trade.name}{tr.laborUnits!=null && ` ${tr.laborUnits}품`}{tr.memo && `(${tr.memo})`}
+                                                </span>
                                               </div>
                                             )}
                                           </div>
@@ -1598,6 +1624,12 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
             <button className={view==="bysite"?"active":""} onClick={()=>setView("bysite")}>현장별 보기</button>
             <button className={view==="agenda"?"active":""} onClick={()=>setView("agenda")}>전체 목록형</button>
           </div>
+          {(view==="month" || view==="bysite") && (
+            <div className="view-toggle" title="공정 막대 색상 표시 방식">
+              <button className={chipStyle==="fill"?"active":""} onClick={()=>setChipStyle("fill")}>배경색</button>
+              <button className={chipStyle==="text"?"active":""} onClick={()=>setChipStyle("text")}>글자색</button>
+            </div>
+          )}
           <div className="cal-filter">
             <SiteMultiSelect sites={sites} selectedSiteIds={selectedSiteIds} onChange={ids=>{setSelectedSiteIds(ids); setSelectedDate(null);}} />
           </div>
@@ -1982,6 +2014,91 @@ function VendorFormModal({ onClose, onSave }){
           <button className="btn btn-primary" onClick={submit}>저장</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ---------- Labor tab (담당자관리 — 품수 집계) ---------- */
+function LaborTab({ trades, sites, schedules }){
+  const [cursor, setCursor] = useState(() => { const d = new Date(); return {y: d.getFullYear(), m: d.getMonth()}; });
+
+  function changeMonth(delta){
+    setCursor(prev => {
+      let nm = prev.m + delta, ny = prev.y;
+      while(nm<0){ nm+=12; ny--; }
+      while(nm>11){ nm-=12; ny++; }
+      return { y: ny, m: nm };
+    });
+  }
+
+  const monthStart = `${cursor.y}-${pad(cursor.m+1)}-01`;
+  const monthEnd = `${cursor.y}-${pad(cursor.m+1)}-${pad(new Date(cursor.y, cursor.m+1, 0).getDate())}`;
+  const tradeById = Object.fromEntries(trades.map(t=>[t.id,t]));
+
+  const monthSchedules = schedules.filter(sc => {
+    const { start, end } = scheduleRange(sc);
+    return start<=monthEnd && end>=monthStart;
+  });
+
+  const grouped = {};
+  monthSchedules.forEach(sc => {
+    const trade = tradeById[sc.tradeId];
+    if(!trade) return;
+    const contact = trade.contacts.find(c => c.id===sc.contactId);
+    const contactName = contact?.name || "담당자 미지정";
+    if(!grouped[trade.id]) grouped[trade.id] = { trade, contacts: {} };
+    if(!grouped[trade.id].contacts[contactName]) grouped[trade.id].contacts[contactName] = { units: 0, count: 0 };
+    grouped[trade.id].contacts[contactName].units += (sc.laborUnits || 0);
+    grouped[trade.id].contacts[contactName].count += 1;
+  });
+
+  const groupList = trades.map(t => grouped[t.id]).filter(Boolean);
+  const grandTotal = groupList.reduce((sum, g) => sum + Object.values(g.contacts).reduce((s,c) => s+c.units, 0), 0);
+
+  return (
+    <div>
+      <div className="section-head">
+        <div>
+          <p className="eyebrow">LABOR / 품수 집계</p>
+          <h2>담당자 품수 관리</h2>
+        </div>
+        <div className="cal-nav">
+          <button onClick={()=>changeMonth(-1)}>‹</button>
+          <span className="cal-month">{cursor.y}. {pad(cursor.m+1)}</span>
+          <button onClick={()=>changeMonth(1)}>›</button>
+        </div>
+      </div>
+
+      <p style={{fontSize:13, color:"var(--ink-soft)", marginBottom:16, maxWidth:640}}>
+        캘린더에서 일정을 추가·수정할 때 입력한 <b>품수(0.5 단위)</b>를 공정별·담당자별로 이번 달 기준 합산합니다. 일당 계산할 때 참고하세요.
+      </p>
+
+      {groupList.length===0 ? (
+        <div className="empty">이번 달에 품수가 입력된 일정이 없습니다.<br/>캘린더에서 일정을 추가하거나 수정할 때 "품수" 칸에 값을 넣어보세요.</div>
+      ) : (
+        <>
+          {groupList.map(g => (
+            <div className="card" style={{marginBottom:12}} key={g.trade.id}>
+              <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:10}}>
+                <span className="trade-swatch" style={{background:g.trade.color}} />
+                <h4 style={{margin:0, fontSize:15}}>{g.trade.name}</h4>
+              </div>
+              {Object.entries(g.contacts).map(([name, data]) => (
+                <div key={name} style={{display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 2px", borderTop:"1px solid var(--paper-line)", fontSize:13.5}}>
+                  <span>{name}</span>
+                  <span style={{fontFamily:"var(--mono)", fontWeight:800, color:"var(--navy)"}}>{data.units}품 <span style={{color:"var(--ink-soft)", fontWeight:600}}>({data.count}건)</span></span>
+                </div>
+              ))}
+            </div>
+          ))}
+          <div className="card" style={{background:"var(--navy-deep)", color:"#fff"}}>
+            <div style={{display:"flex", justifyContent:"space-between", fontWeight:800, fontSize:14}}>
+              <span>이번 달 전체 합계</span>
+              <span style={{fontFamily:"var(--mono)"}}>{grandTotal}품</span>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
