@@ -277,7 +277,8 @@
   .site-multiselect-item:hover{background:var(--paper);}
   .site-multiselect-item input{cursor:pointer;}
   .site-multiselect-empty{font-size:12.5px;color:var(--ink-soft);padding:6px 4px;}
-  .cal-dow-row{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:14px;}
+  .cal-dow-row{display:grid;grid-template-columns:100px repeat(7,1fr);gap:4px;margin-top:14px;}
+  .cal-dow-spacer{}
   .cal-dow{font-family:var(--mono);font-size:11px;color:var(--ink-soft);text-align:center;padding-bottom:4px;letter-spacing:.05em;}
   .by-site-list{display:flex;flex-direction:column;gap:22px;}
   .by-site-section{border:1px solid var(--paper-line);border-radius:12px;overflow:hidden;background:var(--card);}
@@ -303,6 +304,14 @@
   }
   .week-row{margin-bottom:0;}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:0;position:relative;z-index:1;}
+  .cal-grid.has-labels{grid-template-columns:100px repeat(7,1fr);}
+  .site-label-col{display:flex;flex-direction:column;min-height:0;background:var(--paper);border:1px solid var(--paper-line);border-right:none;}
+  .site-label-tab{
+    display:flex;align-items:center;padding:4px 6px;border-left:4px solid transparent;border-top:1px solid var(--paper-line);
+    font-size:9.5px;font-weight:700;line-height:1.15;color:var(--ink);overflow:hidden;
+  }
+  .site-label-tab:first-child{border-top:none;}
+  .site-label-tab span{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
   .cal-cell{
     background:var(--card);border:1px solid var(--paper-line);border-radius:0;min-height:168px;padding:0;
     display:flex;flex-direction:column;gap:0;cursor:pointer;overflow:hidden;
@@ -1493,6 +1502,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
     return (
       <div className="card cal-continuous">
         <div className="cal-dow-row">
+          <div className="cal-dow-spacer" />
           {DOW.map((d,i) => <div className={"cal-dow" + (i===0?" cal-date-sun":"") + (i===6?" cal-date-sat":"")} key={d}>{d}</div>)}
         </div>
         {segments.map((seg, si) => {
@@ -1506,7 +1516,19 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                 const weekParity = wi % 2 === 0 ? " week-stripe-a" : " week-stripe-b";
                 return (
                   <div className={"week-row" + weekParity} key={wi}>
-                    <div className="cal-grid">
+                    <div className="cal-grid has-labels">
+                      <div className="site-label-col">
+                        {relevantSites.map(site => (
+                          <div
+                            key={site.id}
+                            className="site-label-tab"
+                            style={{ flex:`1 1 ${100/relevantSites.length}%`, background: siteColorMap[site.id]+"1c", borderLeftColor: siteColorMap[site.id] }}
+                            title={site.name}
+                          >
+                            <span>{site.name}</span>
+                          </div>
+                        ))}
+                      </div>
                       {weekDays.map((cell, di) => {
                         const dateStr = dateStrs[di];
                         const aboveCell = wi>0 ? weeks[wi-1][di] : null;
@@ -1557,40 +1579,30 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                       style={laneStyle}
                                       title={item.active ? titleText : ""}
                                     >
-                                      {item.trades.length>0 ? (
-                                        tradeSlots.map((tr, ti) => (
-                                          <div
-                                            className={"trade-slot" + (tr ? "" : " trade-slot-empty")}
-                                            key={ti}
-                                            title={tr ? "" : "클릭해서 이 날짜에 공정 추가"}
-                                            onClick={tr ? undefined : (e=>{ e.stopPropagation(); setQuickAdd({siteId: item.site.id, date: dateStr}); })}
-                                          >
-                                            {tr && (
-                                              <div
-                                                className={"trade-day-chip" + (chipStyle==="text" ? " chip-text-mode" : "")}
-                                                style={chipStyle==="text" ? {background:"#fff", border:`2px solid ${tr.trade.color}`} : {background: tr.trade.color}}
-                                                title={`${item.site.name} · ${tr.trade.name} (${tr.start} ~ ${tr.end}) — 드래그로 날짜 이동, 클릭하면 수정`}
-                                                draggable
-                                                onDragStart={e=>handleChipDragStart(e, tr.id, dateStr)}
-                                                onDragEnd={()=>setDragOverDate(null)}
-                                                onClick={e=>{ e.stopPropagation(); setEditingScheduleId(tr.id); }}
-                                              >
-                                                <span style={chipStyle==="text" ? {color: tr.trade.color} : {}}>
-                                                  {tr.trade.name}{tr.laborUnits!=null && ` ${tr.laborUnits}품`}{tr.memo && `(${tr.memo})`}
-                                                </span>
-                                              </div>
-                                            )}
-                                          </div>
-                                        ))
-                                      ) : item.active ? (
+                                      {tradeSlots.map((tr, ti) => (
                                         <div
-                                          className="site-name-fill"
-                                          title="클릭해서 이 날짜에 공정 추가"
-                                          onClick={e=>{ e.stopPropagation(); setQuickAdd({siteId: item.site.id, date: dateStr}); }}
+                                          className={"trade-slot" + (tr ? "" : " trade-slot-empty")}
+                                          key={ti}
+                                          title={tr ? "" : "클릭해서 이 날짜에 공정 추가"}
+                                          onClick={tr ? undefined : (e=>{ e.stopPropagation(); setQuickAdd({siteId: item.site.id, date: dateStr}); })}
                                         >
-                                          {item.site.name}
+                                          {tr && (
+                                            <div
+                                              className={"trade-day-chip" + (chipStyle==="text" ? " chip-text-mode" : "")}
+                                              style={chipStyle==="text" ? {background:"transparent"} : {background: tr.trade.color}}
+                                              title={`${item.site.name} · ${tr.trade.name} (${tr.start} ~ ${tr.end}) — 드래그로 날짜 이동, 클릭하면 수정`}
+                                              draggable
+                                              onDragStart={e=>handleChipDragStart(e, tr.id, dateStr)}
+                                              onDragEnd={()=>setDragOverDate(null)}
+                                              onClick={e=>{ e.stopPropagation(); setEditingScheduleId(tr.id); }}
+                                            >
+                                              <span style={chipStyle==="text" ? {color: tr.trade.color, fontWeight:800} : {}}>
+                                                {tr.trade.name}{tr.laborUnits!=null && ` ${tr.laborUnits}품`}{tr.memo && `(${tr.memo})`}
+                                              </span>
+                                            </div>
+                                          )}
                                         </div>
-                                      ) : null}
+                                      ))}
                                     </div>
                                   );
                                 })}
