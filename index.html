@@ -1527,20 +1527,18 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                 return (
                   <div className={"week-row" + weekParity} key={wi}>
                     <div className="cal-grid has-labels">
-                      {weekSiteList.length>0 && (
-                        <div className="site-label-col">
-                          {weekSiteList.map(site => (
-                            <div
-                              key={site.id}
-                              className="site-label-tab"
-                              style={{ flex:`1 1 ${100/weekSiteList.length}%`, background: siteColorMap[site.id]+"1c", borderLeftColor: siteColorMap[site.id] }}
-                              title={site.name}
-                            >
-                              <span>{site.name}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      <div className="site-label-col">
+                        {weekSiteList.map(site => (
+                          <div
+                            key={site.id}
+                            className="site-label-tab"
+                            style={{ flex:`1 1 ${100/weekSiteList.length}%`, background: siteColorMap[site.id]+"1c", borderLeftColor: siteColorMap[site.id] }}
+                            title={site.name}
+                          >
+                            <span>{site.name}</span>
+                          </div>
+                        ))}
+                      </div>
                       {weekDays.map((cell, di) => {
                         const dateStr = dateStrs[di];
                         const aboveCell = wi>0 ? weeks[wi-1][di] : null;
