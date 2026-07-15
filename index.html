@@ -1514,21 +1514,33 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                 const weekDays = weeks[wi];
                 const dateStrs = weekDays.map(c => c ? dateStrFor(c.y, c.m, c.day) : null);
                 const weekParity = wi % 2 === 0 ? " week-stripe-a" : " week-stripe-b";
+                // only show a site's label/lane this week if it's actually active on at
+                // least one day of the week — otherwise its name would show for weeks
+                // that have nothing scheduled for it at all
+                const weekSiteList = siteList.filter(site => dateStrs.some(ds => {
+                  if(!ds) return false;
+                  const range = siteRanges[site.id];
+                  const headerActive = range && ds>=range.start && ds<=range.end;
+                  const hasTrade = filtered.some(sc => sc.siteId===site.id && (() => { const {start,end}=scheduleRange(sc); return ds>=start && ds<=end; })());
+                  return !!headerActive || hasTrade;
+                }));
                 return (
                   <div className={"week-row" + weekParity} key={wi}>
                     <div className="cal-grid has-labels">
-                      <div className="site-label-col">
-                        {relevantSites.map(site => (
-                          <div
-                            key={site.id}
-                            className="site-label-tab"
-                            style={{ flex:`1 1 ${100/relevantSites.length}%`, background: siteColorMap[site.id]+"1c", borderLeftColor: siteColorMap[site.id] }}
-                            title={site.name}
-                          >
-                            <span>{site.name}</span>
-                          </div>
-                        ))}
-                      </div>
+                      {weekSiteList.length>0 && (
+                        <div className="site-label-col">
+                          {weekSiteList.map(site => (
+                            <div
+                              key={site.id}
+                              className="site-label-tab"
+                              style={{ flex:`1 1 ${100/weekSiteList.length}%`, background: siteColorMap[site.id]+"1c", borderLeftColor: siteColorMap[site.id] }}
+                              title={site.name}
+                            >
+                              <span>{site.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {weekDays.map((cell, di) => {
                         const dateStr = dateStrs[di];
                         const aboveCell = wi>0 ? weeks[wi-1][di] : null;
@@ -1552,7 +1564,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                               </span>
                             )}
                             {cell && (() => {
-                              const items = dayItems(dateStr, siteList);
+                              const items = dayItems(dateStr, weekSiteList);
                               const hasAnyActive = items.some(item => item.active);
                               if(!hasAnyActive){
                                 return (
@@ -1570,7 +1582,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                 {items.map((item, idx) => {
                                   const siteColor = siteColorMap[item.site.id];
                                   const titleText = `${item.site.name}${item.start && item.end ? ` 전체공사 (${item.start} ~ ${item.end})` : ""}`;
-                                  const laneStyle = { flex: siteList.length ? `1 1 ${100/siteList.length}%` : "1", background: item.active ? siteColor + "48" : "transparent" };
+                                  const laneStyle = { flex: items.length ? `1 1 ${100/items.length}%` : "1", background: item.active ? siteColor + "48" : "transparent" };
                                   const tradeSlots = Array.from({length:3}, (_, i) => item.trades[i] || null);
                                   return (
                                     <div
