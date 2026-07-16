@@ -362,6 +362,10 @@
     font-size:8.5px;color:var(--ink-soft);font-weight:700;background:rgba(20,20,20,0.035);
     border-top:1px dashed var(--paper-line);box-sizing:border-box;white-space:nowrap;text-overflow:ellipsis;
   }
+  .site-worker-row-clickable{cursor:pointer;}
+  .site-worker-row-clickable:hover{background:rgba(226,121,47,0.15);}
+  .site-worker-row-hint{opacity:.45;}
+  .site-worker-row-clickable:hover .site-worker-row-hint{opacity:.9;color:var(--accent);}
   .site-name-fill{
     font-size:9px;line-height:1.2;color:var(--ink);font-weight:800;letter-spacing:.01em;
     padding:3px 5px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
@@ -1021,6 +1025,51 @@ function SiteDetailModal({ site, trades, schedules, onClose, onUpdateSite, onAdd
   );
 }
 
+function DayWorkersModal({ site, date, trades, onClose, onSave }){
+  const [names, setNames] = useState(() => Object.fromEntries(trades.map(t => [t.id, t.workerName || ""])));
+
+  function submit(){
+    onSave(Object.entries(names).map(([id, workerName]) => ({ id, workerName: workerName.trim() })));
+    onClose();
+  }
+
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-head">
+          <div>
+            <p className="eyebrow">ASSIGN WORKERS</p>
+            <h3>{site.name} · {date}</h3>
+          </div>
+          <button className="close-x" onClick={onClose}>✕</button>
+        </div>
+
+        <p style={{fontSize:12.5, color:"var(--ink-soft)", marginBottom:12}}>이 날짜에 진행되는 공정별로 작업자명을 지정하세요.</p>
+
+        {trades.map(t => (
+          <div className="field" key={t.id}>
+            <label>
+              <span className="trade-swatch" style={{background:t.trade.color, marginRight:6, display:"inline-block", verticalAlign:"middle"}} />
+              {t.trade.name}
+            </label>
+            <input
+              type="text"
+              value={names[t.id]}
+              onChange={e=>setNames(prev => ({...prev, [t.id]: e.target.value}))}
+              placeholder="예: 김철수"
+            />
+          </div>
+        ))}
+
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>취소</button>
+          <button className="btn btn-primary" onClick={submit}>저장</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onClose, onAdd }){
   const [siteId, setSiteId] = useState(initialSiteId || sites[0]?.id || "");
   const site = sites.find(s => s.id===siteId);
@@ -1335,6 +1384,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   const [dragOverDate, setDragOverDate] = useState(null);
   const [editingScheduleId, setEditingScheduleId] = useState(null);
   const [quickAdd, setQuickAdd] = useState(null); // { siteId, date } or null
+  const [workerEditor, setWorkerEditor] = useState(null); // { site, date, trades } or null
 
   const isSiteSelected = siteId => selectedSiteIds===null || selectedSiteIds.includes(siteId);
 
@@ -1636,9 +1686,14 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                       ))}
                                       {(() => {
                                         const workers = [...new Set(item.trades.map(t=>t.workerName).filter(Boolean))];
+                                        const canEdit = item.trades.length>0;
                                         return (
-                                          <div className="site-worker-row" title={workers.length ? `담당자: ${workers.join(", ")}` : ""}>
-                                            {workers.length>0 && <span>👷 {workers.join(", ")}</span>}
+                                          <div
+                                            className={"site-worker-row" + (canEdit ? " site-worker-row-clickable" : "")}
+                                            title={canEdit ? "클릭해서 담당자 지정" : ""}
+                                            onClick={canEdit ? (e=>{ e.stopPropagation(); setWorkerEditor({ site: item.site, date: dateStr, trades: item.trades }); }) : undefined}
+                                          >
+                                            {workers.length>0 ? <span>👷 {workers.join(", ")}</span> : (canEdit && <span className="site-worker-row-hint">+ 담당자 지정</span>)}
                                           </div>
                                         );
                                       })()}
@@ -1817,6 +1872,21 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
           initialDate={quickAdd.date}
           onClose={()=>setQuickAdd(null)}
           onAdd={(siteId, sc) => { setSchedules(prev => [...prev, { ...sc, id: uid(), siteId }]); setQuickAdd(null); }}
+        />
+      )}
+
+      {workerEditor && (
+        <DayWorkersModal
+          site={workerEditor.site}
+          date={workerEditor.date}
+          trades={workerEditor.trades}
+          onClose={()=>setWorkerEditor(null)}
+          onSave={updates => {
+            setSchedules(prev => prev.map(sc => {
+              const found = updates.find(u => u.id===sc.id);
+              return found ? { ...sc, workerName: found.workerName } : sc;
+            }));
+          }}
         />
       )}
     </div>
