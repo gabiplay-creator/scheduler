@@ -279,7 +279,7 @@
   .site-multiselect-empty{font-size:12.5px;color:var(--ink-soft);padding:6px 4px;}
   .worker-sched-table{border-collapse:collapse;width:100%;font-size:12.5px;}
   .worker-sched-table th,.worker-sched-table td{border:1px solid var(--paper-line);padding:6px 12px;text-align:center;white-space:nowrap;}
-  .worker-sched-table th{background:var(--paper);font-weight:800;color:var(--navy);font-family:var(--mono);font-size:11.5px;}
+  .worker-sched-table th{background:var(--paper);font-weight:800;color:var(--navy);font-family:var(--mono);font-size:11.5px;position:sticky;top:0;z-index:2;box-shadow:0 1px 0 var(--paper-line);}
   .worker-sched-table td:first-child,.worker-sched-table td:nth-child(2){font-family:var(--mono);color:var(--ink-soft);}
   .worker-sched-table tr.row-sun td:first-child,.worker-sched-table tr.row-sun td:nth-child(2){color:#C0392B;font-weight:700;}
   .worker-sched-table tr.row-sat td:first-child,.worker-sched-table tr.row-sat td:nth-child(2){color:#1B5E86;font-weight:700;}
@@ -354,16 +354,16 @@
   }
   .site-day-block.empty-lane{background:transparent !important;}
   .trade-slot{
-    height:18px;min-height:18px;display:flex;align-items:center;overflow:hidden;
+    height:38px;min-height:38px;display:flex;align-items:center;overflow:hidden;
   }
   .trade-slot-empty{cursor:pointer;border-radius:2px;}
   .trade-slot-empty:hover{background:rgba(226,121,47,0.18);}
   .trade-day-chip{
-    width:100%;height:14px;border-radius:2px;display:flex;align-items:center;padding:1px 5px;overflow:hidden;
+    width:100%;height:34px;border-radius:3px;display:flex;align-items:center;padding:2px 7px;overflow:hidden;
     box-shadow:none;margin-bottom:4px;box-sizing:border-box;cursor:grab;
   }
   .trade-day-chip:active{cursor:grabbing;}
-  .trade-day-chip .chip-main{font-size:9.5px;color:#fff;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .trade-day-chip .chip-main{font-size:28px;color:#fff;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1;}
   .site-worker-row{
     height:16px;min-height:16px;display:flex;align-items:center;padding:1px 5px;overflow:hidden;
     font-size:8.5px;color:var(--ink-soft);font-weight:700;background:rgba(20,20,20,0.035);
