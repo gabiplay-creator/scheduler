@@ -277,6 +277,13 @@
   .site-multiselect-item:hover{background:var(--paper);}
   .site-multiselect-item input{cursor:pointer;}
   .site-multiselect-empty{font-size:12.5px;color:var(--ink-soft);padding:6px 4px;}
+  .worker-sched-table{border-collapse:collapse;width:100%;font-size:12.5px;}
+  .worker-sched-table th,.worker-sched-table td{border:1px solid var(--paper-line);padding:6px 12px;text-align:center;white-space:nowrap;}
+  .worker-sched-table th{background:var(--paper);font-weight:800;color:var(--navy);font-family:var(--mono);font-size:11.5px;}
+  .worker-sched-table td:first-child,.worker-sched-table td:nth-child(2){font-family:var(--mono);color:var(--ink-soft);}
+  .worker-sched-table tr.row-sun td:first-child,.worker-sched-table tr.row-sun td:nth-child(2){color:#C0392B;font-weight:700;}
+  .worker-sched-table tr.row-sat td:first-child,.worker-sched-table tr.row-sat td:nth-child(2){color:#1B5E86;font-weight:700;}
+  .worker-sched-table tbody tr:hover{background:rgba(0,0,0,0.02);}
   .cal-dow-row{display:grid;grid-template-columns:100px repeat(7,1fr);gap:4px;margin-top:14px;}
   .cal-dow-spacer{}
   .cal-dow{font-family:var(--mono);font-size:11px;color:var(--ink-soft);text-align:center;padding-bottom:4px;letter-spacing:.05em;}
@@ -671,6 +678,7 @@ function App(){
             <button className={"tab" + (tab==="contacts"?" active":"")} onClick={()=>setTab("contacts")}>거래처관리</button>
             <button className={"tab" + (tab==="vendors"?" active":"")} onClick={()=>setTab("vendors")}>기타거래처</button>
             <button className={"tab" + (tab==="labor"?" active":"")} onClick={()=>setTab("labor")}>담당자관리</button>
+            <button className={"tab" + (tab==="worker-sched"?" active":"")} onClick={()=>setTab("worker-sched")}>담당자 일정</button>
           </div>
         </div>
         <div className="ruler">{rulerTicks.map((_,i)=><span key={i}/>)}</div>
@@ -691,6 +699,9 @@ function App(){
         )}
         {tab==="labor" && (
           <LaborTab trades={trades} sites={sites} schedules={schedules} />
+        )}
+        {tab==="worker-sched" && (
+          <WorkerScheduleTab trades={trades} sites={sites} schedules={schedules} />
         )}
       </div>
 
@@ -2219,6 +2230,178 @@ function LaborTab({ trades, sites, schedules }){
             </div>
           </div>
         </>
+      )}
+    </div>
+  );
+}
+
+function WorkerMultiSelect({ workers, selected, onChange }){
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function handleOutside(e){ if(ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
+
+  const allSelected = selected===null;
+  const isChecked = w => allSelected || selected.includes(w);
+  const count = allSelected ? workers.length : selected.length;
+  const label = workers.length===0 ? "담당자 없음"
+    : allSelected ? "전체 담당자"
+    : count===0 ? "담당자 선택"
+    : count===1 ? selected[0]
+    : `담당자 ${count}명`;
+
+  function toggle(w){
+    if(allSelected){
+      onChange(workers.filter(x=>x!==w));
+    } else {
+      const next = selected.includes(w) ? selected.filter(x=>x!==w) : [...selected, w];
+      onChange(next.length===workers.length ? null : next);
+    }
+  }
+
+  return (
+    <div className="site-multiselect" ref={ref}>
+      <button type="button" className="site-multiselect-btn" onClick={()=>setOpen(o=>!o)}>{label} ▾</button>
+      {open && (
+        <div className="site-multiselect-panel">
+          <div className="site-multiselect-actions">
+            <button type="button" onClick={()=>onChange(null)}>전체 선택</button>
+            <button type="button" onClick={()=>onChange([])}>전체 해제</button>
+          </div>
+          {workers.length===0 ? (
+            <p className="site-multiselect-empty">등록된 담당자가 없습니다</p>
+          ) : workers.map(w => (
+            <label className="site-multiselect-item" key={w}>
+              <input type="checkbox" checked={isChecked(w)} onChange={()=>toggle(w)} />
+              {w}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Worker schedule tab (담당자 일정 — 날짜×담당자 매트릭스) ---------- */
+function WorkerScheduleTab({ trades, sites, schedules }){
+  const [cursor, setCursor] = useState(() => { const d = new Date(); return {y: d.getFullYear(), m: d.getMonth()}; });
+  const [selectedWorkers, setSelectedWorkers] = useState(null); // null = all
+
+  const tradeById = Object.fromEntries(trades.map(t=>[t.id,t]));
+  const siteById = Object.fromEntries(sites.map(s=>[s.id,s]));
+  const siteColorMap = Object.fromEntries(sites.map((s,i) => [s.id, PROJECT_COLOR_POOL[i % PROJECT_COLOR_POOL.length]]));
+
+  function workerNameOf(sc){
+    const trade = tradeById[sc.tradeId];
+    const contact = trade?.contacts.find(c => c.id===sc.contactId);
+    return (sc.workerName && sc.workerName.trim()) || contact?.name || null;
+  }
+
+  const allWorkers = useMemo(() => {
+    const set = new Set();
+    schedules.forEach(sc => { const n = workerNameOf(sc); if(n) set.add(n); });
+    return Array.from(set).sort();
+  }, [schedules, trades]);
+
+  const workers = selectedWorkers===null ? allWorkers : allWorkers.filter(w => selectedWorkers.includes(w));
+
+  function changeMonth(delta){
+    setCursor(prev => {
+      let nm = prev.m + delta, ny = prev.y;
+      while(nm<0){ nm+=12; ny--; }
+      while(nm>11){ nm-=12; ny++; }
+      return { y: ny, m: nm };
+    });
+  }
+
+  const daysInMonth = new Date(cursor.y, cursor.m+1, 0).getDate();
+  const dateList = Array.from({length: daysInMonth}, (_, i) => {
+    const day = i+1;
+    const dateStr = `${cursor.y}-${pad(cursor.m+1)}-${pad(day)}`;
+    const dow = new Date(cursor.y, cursor.m, day).getDay();
+    return { day, dateStr, dow };
+  });
+
+  function siteForWorkerOnDate(worker, dateStr){
+    const sc = schedules.find(sc => {
+      if(workerNameOf(sc) !== worker) return false;
+      const { start, end } = scheduleRange(sc);
+      return dateStr>=start && dateStr<=end;
+    });
+    if(!sc) return null;
+    return siteById[sc.siteId] || null;
+  }
+
+  return (
+    <div>
+      <div className="section-head">
+        <div>
+          <p className="eyebrow">LABOR SCHEDULE</p>
+          <h2>담당자별 일정</h2>
+        </div>
+        <div style={{display:"flex", gap:10, alignItems:"center", flexWrap:"wrap"}}>
+          <WorkerMultiSelect workers={allWorkers} selected={selectedWorkers} onChange={setSelectedWorkers} />
+          <div className="cal-nav">
+            <button onClick={()=>changeMonth(-1)}>‹</button>
+            <span className="cal-month">{cursor.y}. {pad(cursor.m+1)}</span>
+            <button onClick={()=>changeMonth(1)}>›</button>
+          </div>
+        </div>
+      </div>
+
+      <p style={{fontSize:13, color:"var(--ink-soft)", marginBottom:16, maxWidth:640}}>
+        선택한 담당자가 날짜별로 어느 현장에 있는지 한눈에 봅니다. 셀 색상은 현장별 색상과 같습니다.
+      </p>
+
+      {workers.length===0 ? (
+        <div className="empty">표시할 담당자가 없습니다. 위에서 담당자를 선택해주세요.</div>
+      ) : (
+        <div className="card" style={{overflowX:"auto", padding:0}}>
+          <table className="worker-sched-table">
+            <thead>
+              <tr>
+                <th>날짜</th>
+                <th>요일</th>
+                {workers.map(w => <th key={w}>{w}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {dateList.map(d => (
+                <tr key={d.day} className={d.dow===0 ? "row-sun" : d.dow===6 ? "row-sat" : ""}>
+                  <td>{d.day}일</td>
+                  <td>{DOW[d.dow]}</td>
+                  {workers.map(w => {
+                    const site = siteForWorkerOnDate(w, d.dateStr);
+                    return (
+                      <td
+                        key={w}
+                        style={site ? { background: siteColorMap[site.id]+"38", color:"var(--ink)", fontWeight:700 } : {}}
+                        title={site ? site.name : ""}
+                      >
+                        {site ? site.name.slice(0,2) : ""}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {sites.length>0 && (
+        <div className="cal-legend" style={{marginTop:14}}>
+          {sites.map(s => (
+            <span className="legend-item" key={s.id}>
+              <span className="legend-dot" style={{background:siteColorMap[s.id]}} />
+              {s.name.slice(0,2)} = {s.name}
+            </span>
+          ))}
+        </div>
       )}
     </div>
   );
