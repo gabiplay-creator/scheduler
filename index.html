@@ -319,6 +319,11 @@
   }
   .site-label-tab:first-child{border-top:none;}
   .site-label-tab span{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+  .site-label-tab.has-abbr{justify-content:center;}
+  .site-label-abbr{
+    font-size:22px;font-weight:800;line-height:1.1;color:var(--navy);text-align:center;
+    -webkit-line-clamp:2 !important;
+  }
   .cal-cell{
     background:var(--card);border:1px solid var(--paper-line);border-radius:0;min-height:168px;padding:0;
     display:flex;flex-direction:column;gap:0;cursor:pointer;overflow:hidden;
@@ -833,6 +838,7 @@ function SitesTab({ sites, setSites, trades, schedules, setSchedules }){
 
 function SiteFormModal({ onClose, onSave, initial }){
   const [name, setName] = useState(initial?.name || "");
+  const [abbreviation, setAbbreviation] = useState(initial?.abbreviation || "");
   const [address, setAddress] = useState(initial?.address || "");
   const [memo, setMemo] = useState(initial?.memo || "");
   const [floorPlan, setFloorPlan] = useState(initial?.floorPlan || null);
@@ -863,7 +869,7 @@ function SiteFormModal({ onClose, onSave, initial }){
     if(!name.trim() || !address.trim()){ alert("현장명과 주소는 필수입니다."); return; }
     if(projectStart && projectEnd && projectEnd < projectStart){ alert("전체 공사 종료일이 시작일보다 빠를 수 없습니다."); return; }
     onSave({
-      name: name.trim(), address: address.trim(), memo: memo.trim(), floorPlan, estimate,
+      name: name.trim(), abbreviation: abbreviation.trim(), address: address.trim(), memo: memo.trim(), floorPlan, estimate,
       officeName: officeName.trim(), officePhone: officePhone.trim(),
       projectStart, projectEnd,
     });
@@ -877,9 +883,15 @@ function SiteFormModal({ onClose, onSave, initial }){
           <button className="close-x" onClick={onClose}>✕</button>
         </div>
 
-        <div className="field">
-          <label>현장명</label>
-          <input type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="예: 서울숲 리버뷰 24평" />
+        <div className="row2">
+          <div className="field">
+            <label>현장명</label>
+            <input type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="예: 서울숲 리버뷰 24평" />
+          </div>
+          <div className="field">
+            <label>약어 (달력에 크게 표시)</label>
+            <input type="text" value={abbreviation} onChange={e=>setAbbreviation(e.target.value)} placeholder="예: 홍은" />
+          </div>
         </div>
         <div className="field">
           <label>주소</label>
@@ -1617,11 +1629,11 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                         {weekSiteList.map(site => (
                           <div
                             key={site.id}
-                            className="site-label-tab"
+                            className={"site-label-tab" + (site.abbreviation ? " has-abbr" : "")}
                             style={{ flex:`1 1 ${100/weekSiteList.length}%`, background: siteColorMap[site.id]+"1c", borderLeftColor: siteColorMap[site.id] }}
                             title={site.name}
                           >
-                            <span>{site.name}</span>
+                            {site.abbreviation ? <span className="site-label-abbr">{site.abbreviation}</span> : <span>{site.name}</span>}
                           </div>
                         ))}
                       </div>
@@ -2403,7 +2415,7 @@ function WorkerScheduleTab({ trades, sites, schedules }){
                         style={site ? { background: siteColorMap[site.id]+"38", color:"var(--ink)", fontWeight:700 } : {}}
                         title={site ? site.name : ""}
                       >
-                        {site ? site.name.slice(0,2) : ""}
+                        {site ? (site.abbreviation || site.name.slice(0,2)) : ""}
                       </td>
                     );
                   })}
@@ -2419,7 +2431,7 @@ function WorkerScheduleTab({ trades, sites, schedules }){
           {sites.map(s => (
             <span className="legend-item" key={s.id}>
               <span className="legend-dot" style={{background:siteColorMap[s.id]}} />
-              {s.name.slice(0,2)} = {s.name}
+              {s.abbreviation || s.name.slice(0,2)} = {s.name}
             </span>
           ))}
         </div>
