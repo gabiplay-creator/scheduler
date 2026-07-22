@@ -2326,12 +2326,14 @@ function WorkerScheduleTab({ trades, sites, schedules }){
     });
   }
 
-  const daysInMonth = new Date(cursor.y, cursor.m+1, 0).getDate();
-  const dateList = Array.from({length: daysInMonth}, (_, i) => {
-    const day = i+1;
-    const dateStr = `${cursor.y}-${pad(cursor.m+1)}-${pad(day)}`;
-    const dow = new Date(cursor.y, cursor.m, day).getDay();
-    return { day, dateStr, dow };
+  const nextCursor = cursor.m>=11 ? { y: cursor.y+1, m: 0 } : { y: cursor.y, m: cursor.m+1 };
+  const rangeStart = new Date(cursor.y, cursor.m, 1);
+  const rangeEnd = new Date(nextCursor.y, nextCursor.m+1, 0); // last day of the second month
+  const totalDays = Math.round((rangeEnd - rangeStart) / 86400000) + 1;
+  const dateList = Array.from({length: totalDays}, (_, i) => {
+    const d = new Date(rangeStart); d.setDate(d.getDate()+i);
+    const dateStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    return { day: d.getDate(), month: d.getMonth()+1, dateStr, dow: d.getDay() };
   });
 
   function siteForWorkerOnDate(worker, dateStr){
@@ -2345,9 +2347,10 @@ function WorkerScheduleTab({ trades, sites, schedules }){
   }
 
   const [showEmptyDates, setShowEmptyDates] = useState(false);
-  const visibleDateList = showEmptyDates
-    ? dateList
-    : dateList.filter(d => workers.some(w => siteForWorkerOnDate(w, d.dateStr)));
+  const activeDates = dateList.filter(d => workers.some(w => siteForWorkerOnDate(w, d.dateStr)));
+  const visibleDateList = showEmptyDates || activeDates.length===0
+    ? (showEmptyDates ? dateList : activeDates)
+    : dateList.filter(d => d.dateStr>=activeDates[0].dateStr && d.dateStr<=activeDates[activeDates.length-1].dateStr);
   return (
     <div>
       <div className="section-head">
@@ -2363,7 +2366,7 @@ function WorkerScheduleTab({ trades, sites, schedules }){
           </label>
           <div className="cal-nav">
             <button onClick={()=>changeMonth(-1)}>‹</button>
-            <span className="cal-month">{cursor.y}. {pad(cursor.m+1)}</span>
+            <span className="cal-month">{cursor.y}.{pad(cursor.m+1)} - {nextCursor.y}.{pad(nextCursor.m+1)}</span>
             <button onClick={()=>changeMonth(1)}>›</button>
           </div>
         </div>
@@ -2389,8 +2392,8 @@ function WorkerScheduleTab({ trades, sites, schedules }){
             </thead>
             <tbody>
               {visibleDateList.map(d => (
-                <tr key={d.day} className={d.dow===0 ? "row-sun" : d.dow===6 ? "row-sat" : ""}>
-                  <td>{d.day}일</td>
+                <tr key={d.dateStr} className={d.dow===0 ? "row-sun" : d.dow===6 ? "row-sat" : ""}>
+                  <td>{d.month}/{d.day}</td>
                   <td>{DOW[d.dow]}</td>
                   {workers.map(w => {
                     const site = siteForWorkerOnDate(w, d.dateStr);
