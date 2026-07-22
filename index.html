@@ -2344,6 +2344,10 @@ function WorkerScheduleTab({ trades, sites, schedules }){
     return siteById[sc.siteId] || null;
   }
 
+  const [showEmptyDates, setShowEmptyDates] = useState(false);
+  const visibleDateList = showEmptyDates
+    ? dateList
+    : dateList.filter(d => workers.some(w => siteForWorkerOnDate(w, d.dateStr)));
   return (
     <div>
       <div className="section-head">
@@ -2353,6 +2357,10 @@ function WorkerScheduleTab({ trades, sites, schedules }){
         </div>
         <div style={{display:"flex", gap:10, alignItems:"center", flexWrap:"wrap"}}>
           <WorkerMultiSelect workers={allWorkers} selected={selectedWorkers} onChange={setSelectedWorkers} />
+          <label style={{display:"flex", alignItems:"center", gap:6, fontSize:12.5, color:"var(--ink-soft)", cursor:"pointer"}}>
+            <input type="checkbox" checked={showEmptyDates} onChange={e=>setShowEmptyDates(e.target.checked)} />
+            빈 날짜도 표시
+          </label>
           <div className="cal-nav">
             <button onClick={()=>changeMonth(-1)}>‹</button>
             <span className="cal-month">{cursor.y}. {pad(cursor.m+1)}</span>
@@ -2367,6 +2375,8 @@ function WorkerScheduleTab({ trades, sites, schedules }){
 
       {workers.length===0 ? (
         <div className="empty">표시할 담당자가 없습니다. 위에서 담당자를 선택해주세요.</div>
+      ) : visibleDateList.length===0 ? (
+        <div className="empty">이번 달엔 선택한 담당자의 일정이 없습니다.<br/>"빈 날짜도 표시"를 체크하면 전체 날짜를 볼 수 있어요.</div>
       ) : (
         <div className="card" style={{overflowX:"auto", padding:0}}>
           <table className="worker-sched-table">
@@ -2378,7 +2388,7 @@ function WorkerScheduleTab({ trades, sites, schedules }){
               </tr>
             </thead>
             <tbody>
-              {dateList.map(d => (
+              {visibleDateList.map(d => (
                 <tr key={d.day} className={d.dow===0 ? "row-sun" : d.dow===6 ? "row-sat" : ""}>
                   <td>{d.day}일</td>
                   <td>{DOW[d.dow]}</td>
