@@ -596,6 +596,10 @@ function daysBetweenStr(fromStr, toStr){
   const a = new Date(ay, am-1, ad), b = new Date(by, bm-1, bd);
   return Math.round((b - a) / 86400000);
 }
+function splitWorkerNames(str){
+  if(!str) return [];
+  return str.split(",").map(s => s.trim()).filter(Boolean);
+}
 
 function loadLS(key, fallback){
   try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
@@ -1696,7 +1700,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                         </div>
                                       ))}
                                       {(() => {
-                                        const workers = [...new Set(item.trades.map(t=>t.workerName).filter(Boolean))];
+                                        const workers = [...new Set(item.trades.flatMap(t => splitWorkerNames(t.workerName)))];
                                         const canEdit = item.trades.length>0;
                                         return (
                                           <div
@@ -2177,11 +2181,14 @@ function LaborTab({ trades, sites, schedules }){
     const trade = tradeById[sc.tradeId];
     if(!trade) return;
     const contact = trade.contacts.find(c => c.id===sc.contactId);
-    const workerName = (sc.workerName && sc.workerName.trim()) || contact?.name || "작업자 미입력";
+    const names = splitWorkerNames(sc.workerName);
+    const workerNames = names.length ? names : [contact?.name || "작업자 미입력"];
     if(!grouped[trade.id]) grouped[trade.id] = { trade, contacts: {} };
-    if(!grouped[trade.id].contacts[workerName]) grouped[trade.id].contacts[workerName] = { units: 0, count: 0 };
-    grouped[trade.id].contacts[workerName].units += (sc.laborUnits || 0);
-    grouped[trade.id].contacts[workerName].count += 1;
+    workerNames.forEach(workerName => {
+      if(!grouped[trade.id].contacts[workerName]) grouped[trade.id].contacts[workerName] = { units: 0, count: 0 };
+      grouped[trade.id].contacts[workerName].units += (sc.laborUnits || 0);
+      grouped[trade.id].contacts[workerName].count += 1;
+    });
   });
 
   const groupList = trades.map(t => grouped[t.id]).filter(Boolean);
@@ -2295,15 +2302,16 @@ function WorkerScheduleTab({ trades, sites, schedules }){
   const siteById = Object.fromEntries(sites.map(s=>[s.id,s]));
   const siteColorMap = Object.fromEntries(sites.map((s,i) => [s.id, PROJECT_COLOR_POOL[i % PROJECT_COLOR_POOL.length]]));
 
-  function workerNameOf(sc){
+  function workerNamesOf(sc){
     const trade = tradeById[sc.tradeId];
     const contact = trade?.contacts.find(c => c.id===sc.contactId);
-    return (sc.workerName && sc.workerName.trim()) || contact?.name || null;
+    const names = splitWorkerNames(sc.workerName);
+    return names.length ? names : (contact?.name ? [contact.name] : []);
   }
 
   const allWorkers = useMemo(() => {
     const set = new Set();
-    schedules.forEach(sc => { const n = workerNameOf(sc); if(n) set.add(n); });
+    schedules.forEach(sc => { workerNamesOf(sc).forEach(n => set.add(n)); });
     return Array.from(set).sort();
   }, [schedules, trades]);
 
@@ -2328,7 +2336,7 @@ function WorkerScheduleTab({ trades, sites, schedules }){
 
   function siteForWorkerOnDate(worker, dateStr){
     const sc = schedules.find(sc => {
-      if(workerNameOf(sc) !== worker) return false;
+      if(!workerNamesOf(sc).includes(worker)) return false;
       const { start, end } = scheduleRange(sc);
       return dateStr>=start && dateStr<=end;
     });
