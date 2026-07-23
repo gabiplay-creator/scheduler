@@ -282,6 +282,9 @@
   .worker-sched-table th:first-child,.worker-sched-table td:first-child,
   .worker-sched-table th:nth-child(2),.worker-sched-table td:nth-child(2){min-width:auto;}
   .worker-sched-table th{background:var(--paper);font-weight:800;color:var(--navy);font-family:var(--mono);font-size:11.5px;position:sticky;top:0;z-index:2;box-shadow:0 1px 0 var(--paper-line);}
+  .worker-sched-table th:nth-child(n+3){cursor:grab;}
+  .worker-sched-table th:nth-child(n+3):active{cursor:grabbing;}
+  .worker-sched-table th.th-drag-over{background:var(--accent-soft);color:var(--accent);}
   .worker-sched-table td:first-child,.worker-sched-table td:nth-child(2){font-family:var(--mono);color:var(--ink-soft);}
   .worker-sched-table tr.row-sun td:first-child,.worker-sched-table tr.row-sun td:nth-child(2){color:#C0392B;font-weight:700;}
   .worker-sched-table tr.row-sat td:first-child,.worker-sched-table tr.row-sat td:nth-child(2){color:#1B5E86;font-weight:700;}
@@ -2329,7 +2332,33 @@ function WorkerScheduleTab({ trades, sites, schedules }){
     return Array.from(set).sort();
   }, [schedules, trades]);
 
-  const workers = selectedWorkers===null ? allWorkers : allWorkers.filter(w => selectedWorkers.includes(w));
+  // custom column order (drag-to-reorder), persisted locally; new workers are appended,
+  // removed workers drop out automatically
+  const [workerOrder, setWorkerOrder] = useState(() => loadLS("scheduler:workerOrder", []));
+  useEffect(() => { saveLS("scheduler:workerOrder", workerOrder); }, [workerOrder]);
+  useEffect(() => {
+    setWorkerOrder(prev => {
+      const kept = prev.filter(w => allWorkers.includes(w));
+      const added = allWorkers.filter(w => !kept.includes(w));
+      const next = [...kept, ...added];
+      const changed = next.length!==prev.length || next.some((w,i) => w!==prev[i]);
+      return changed ? next : prev;
+    });
+  }, [allWorkers.join("|")]);
+
+  const [dragOverWorker, setDragOverWorker] = useState(null);
+  function reorderWorkers(draggedName, targetName){
+    if(draggedName===targetName) return;
+    setWorkerOrder(prev => {
+      const next = prev.filter(w => w!==draggedName);
+      const idx = next.indexOf(targetName);
+      next.splice(idx===-1 ? next.length : idx, 0, draggedName);
+      return next;
+    });
+  }
+
+  const orderedAllWorkers = workerOrder.length ? workerOrder : allWorkers;
+  const workers = selectedWorkers===null ? orderedAllWorkers : orderedAllWorkers.filter(w => selectedWorkers.includes(w));
 
   function changeMonth(delta){
     setCursor(prev => {
@@ -2373,7 +2402,7 @@ function WorkerScheduleTab({ trades, sites, schedules }){
           <h2>담당자별 일정</h2>
         </div>
         <div style={{display:"flex", gap:10, alignItems:"center", flexWrap:"wrap"}}>
-          <WorkerMultiSelect workers={allWorkers} selected={selectedWorkers} onChange={setSelectedWorkers} />
+          <WorkerMultiSelect workers={orderedAllWorkers} selected={selectedWorkers} onChange={setSelectedWorkers} />
           <label style={{display:"flex", alignItems:"center", gap:6, fontSize:12.5, color:"var(--ink-soft)", cursor:"pointer"}}>
             <input type="checkbox" checked={showEmptyDates} onChange={e=>setShowEmptyDates(e.target.checked)} />
             빈 날짜도 표시
@@ -2401,7 +2430,22 @@ function WorkerScheduleTab({ trades, sites, schedules }){
               <tr>
                 <th>날짜</th>
                 <th>요일</th>
-                {workers.map(w => <th key={w}>{w}</th>)}
+                {workers.map(w => (
+                  <th
+                    key={w}
+                    className={dragOverWorker===w ? "th-drag-over" : ""}
+                    draggable
+                    title="드래그해서 순서 변경"
+                    onDragStart={e=>{ e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/plain", w); }}
+                    onDragOver={e=>e.preventDefault()}
+                    onDragEnter={e=>{ e.preventDefault(); setDragOverWorker(w); }}
+                    onDragLeave={()=>{ if(dragOverWorker===w) setDragOverWorker(null); }}
+                    onDrop={e=>{ e.preventDefault(); setDragOverWorker(null); reorderWorkers(e.dataTransfer.getData("text/plain"), w); }}
+                    onDragEnd={()=>setDragOverWorker(null)}
+                  >
+                    {w}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
