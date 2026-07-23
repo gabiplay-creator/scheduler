@@ -277,8 +277,10 @@
   .site-multiselect-item:hover{background:var(--paper);}
   .site-multiselect-item input{cursor:pointer;}
   .site-multiselect-empty{font-size:12.5px;color:var(--ink-soft);padding:6px 4px;}
-  .worker-sched-table{border-collapse:collapse;width:100%;font-size:12.5px;}
-  .worker-sched-table th,.worker-sched-table td{border:1px solid var(--paper-line);padding:6px 12px;text-align:center;white-space:nowrap;}
+  .worker-sched-table{border-collapse:collapse;width:auto;font-size:12.5px;}
+  .worker-sched-table th,.worker-sched-table td{border:1px solid var(--paper-line);padding:6px 14px;text-align:center;white-space:nowrap;min-width:64px;}
+  .worker-sched-table th:first-child,.worker-sched-table td:first-child,
+  .worker-sched-table th:nth-child(2),.worker-sched-table td:nth-child(2){min-width:auto;}
   .worker-sched-table th{background:var(--paper);font-weight:800;color:var(--navy);font-family:var(--mono);font-size:11.5px;position:sticky;top:0;z-index:2;box-shadow:0 1px 0 var(--paper-line);}
   .worker-sched-table td:first-child,.worker-sched-table td:nth-child(2){font-family:var(--mono);color:var(--ink-soft);}
   .worker-sched-table tr.row-sun td:first-child,.worker-sched-table tr.row-sun td:nth-child(2){color:#C0392B;font-weight:700;}
