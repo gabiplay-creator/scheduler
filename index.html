@@ -277,6 +277,14 @@
   .site-multiselect-item:hover{background:var(--paper);}
   .site-multiselect-item input{cursor:pointer;}
   .site-multiselect-empty{font-size:12.5px;color:var(--ink-soft);padding:6px 4px;}
+  .color-swatch-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .color-swatch{
+    width:28px;height:28px;border-radius:50%;border:2px solid transparent;padding:0;cursor:pointer;
+    box-shadow:0 0 0 1px var(--paper-line);position:relative;
+  }
+  .color-swatch.selected{border-color:var(--ink);box-shadow:0 0 0 2px #fff, 0 0 0 4px var(--ink);}
+  .color-swatch-custom{overflow:hidden;display:flex;align-items:center;justify-content:center;border:2px dashed var(--paper-line);}
+  .color-swatch-custom input[type=color]{opacity:0;width:100%;height:100%;cursor:pointer;}
   .worker-sched-table{border-collapse:collapse;width:auto;font-size:12.5px;}
   .worker-sched-table th,.worker-sched-table td{border:1px solid var(--paper-line);padding:6px 14px;text-align:center;white-space:nowrap;min-width:64px;}
   .worker-sched-table th:first-child,.worker-sched-table td:first-child,
@@ -576,6 +584,12 @@ const PROJECT_COLOR_POOL = [
   "#16233F","#5C3D2E","#1B4332","#5C2A3D","#2F4858","#4A3F35","#233D4D","#3A2E39",
 ];
 
+// a curated set of clearly distinguishable colors for the site color picker
+const SITE_COLOR_SWATCHES = [
+  "#16233F","#B23A48","#1B7A4B","#C9701A","#5B2C87","#0E7A8C","#8C1D40","#3F5EA8",
+  "#A0522D","#2E7D6B","#C0392B","#6C3483","#117864","#B7950B","#943126","#1F618D",
+];
+
 const DEFAULT_VENDORS = [
   { id:"v-1", name:"여기가 우리집(박과장)", phone:"010-6304-7584", memo:"" },
   { id:"v-2", name:"한빛조명", phone:"010-6376-6293", memo:"" },
@@ -674,6 +688,19 @@ function App(){
   useEffect(() => {
     const missing = DEFAULT_TRADES.filter(dt => !trades.some(t => t.id===dt.id));
     if(missing.length) setTrades(prev => [...prev, ...missing.filter(dt => !prev.some(t=>t.id===dt.id))]);
+  }, [trades]);
+
+  // every trade should always have at least one blank spare contact slot ready to
+  // fill in — add one to any trade that doesn't have one yet (existing trades included)
+  useEffect(() => {
+    const isBlank = c => !c.name && !c.phone && !c.bank && !c.account;
+    const needsBlank = trades.some(t => !t.contacts.some(isBlank));
+    if(needsBlank){
+      setTrades(prev => prev.map(t => {
+        if(t.contacts.some(isBlank)) return t;
+        return { ...t, contacts: [...t.contacts, { id: uid(), name:"", phone:"", bank:"", account:"", isDefault:false }] };
+      }));
+    }
   }, [trades]);
 
   // give every site a display `order` value, sorted by its overall-project start date
@@ -856,6 +883,7 @@ function SitesTab({ sites, setSites, trades, schedules, setSchedules }){
 function SiteFormModal({ onClose, onSave, initial }){
   const [name, setName] = useState(initial?.name || "");
   const [abbreviation, setAbbreviation] = useState(initial?.abbreviation || "");
+  const [color, setColor] = useState(initial?.color || "");
   const [address, setAddress] = useState(initial?.address || "");
   const [memo, setMemo] = useState(initial?.memo || "");
   const [floorPlan, setFloorPlan] = useState(initial?.floorPlan || null);
@@ -886,7 +914,7 @@ function SiteFormModal({ onClose, onSave, initial }){
     if(!name.trim() || !address.trim()){ alert("현장명과 주소는 필수입니다."); return; }
     if(projectStart && projectEnd && projectEnd < projectStart){ alert("전체 공사 종료일이 시작일보다 빠를 수 없습니다."); return; }
     onSave({
-      name: name.trim(), abbreviation: abbreviation.trim(), address: address.trim(), memo: memo.trim(), floorPlan, estimate,
+      name: name.trim(), abbreviation: abbreviation.trim(), color, address: address.trim(), memo: memo.trim(), floorPlan, estimate,
       officeName: officeName.trim(), officePhone: officePhone.trim(),
       projectStart, projectEnd,
     });
@@ -910,6 +938,27 @@ function SiteFormModal({ onClose, onSave, initial }){
             <input type="text" value={abbreviation} onChange={e=>setAbbreviation(e.target.value)} placeholder="예: 홍은" />
           </div>
         </div>
+
+        <div className="field">
+          <label>현장 색상 (캘린더·담당자 일정표에 사용)</label>
+          <div className="color-swatch-row">
+            {SITE_COLOR_SWATCHES.map(c => (
+              <button
+                type="button"
+                key={c}
+                className={"color-swatch" + (color===c ? " selected" : "")}
+                style={{background:c}}
+                onClick={()=>setColor(c)}
+                title={c}
+              />
+            ))}
+            <label className="color-swatch color-swatch-custom" style={{background: color || "#fff"}} title="직접 선택">
+              <input type="color" value={color || "#16233F"} onChange={e=>setColor(e.target.value)} />
+            </label>
+            {color && <button type="button" className="btn btn-ghost btn-sm" onClick={()=>setColor("")}>기본값으로</button>}
+          </div>
+        </div>
+
         <div className="field">
           <label>주소</label>
           <input type="text" value={address} onChange={e=>setAddress(e.target.value)} placeholder="지번 또는 도로명 주소" />
@@ -1519,8 +1568,9 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
     [sites, selectedSiteIds]);
 
   // a distinct color per site for the overall-project header bar (stable regardless of filter)
+  // — uses the site's own chosen color if set, otherwise falls back to an auto-assigned one
   const siteColorMap = useMemo(() => Object.fromEntries(
-    sites.map((s, i) => [s.id, PROJECT_COLOR_POOL[i % PROJECT_COLOR_POOL.length]])
+    sites.map((s, i) => [s.id, s.color || PROJECT_COLOR_POOL[i % PROJECT_COLOR_POOL.length]])
   ), [sites]);
 
   const relevantSites = useMemo(() => sites
@@ -1993,7 +2043,10 @@ function ContactsTab({ trades, setTrades, schedules, setSchedules }){
     const newTrade = {
       id: "trade-" + uid(),
       name, color, note,
-      contacts: [{ id: uid(), name: contactName, phone, bank, account, isDefault: true }],
+      contacts: [
+        { id: uid(), name: contactName, phone, bank, account, isDefault: true },
+        { id: uid(), name: "", phone: "", bank: "", account: "", isDefault: false },
+      ],
     };
     setTrades(prev => [...prev, newTrade]);
     setShowAddTrade(false);
@@ -2335,7 +2388,7 @@ function WorkerScheduleTab({ trades, sites, schedules }){
 
   const tradeById = Object.fromEntries(trades.map(t=>[t.id,t]));
   const siteById = Object.fromEntries(sites.map(s=>[s.id,s]));
-  const siteColorMap = Object.fromEntries(sites.map((s,i) => [s.id, PROJECT_COLOR_POOL[i % PROJECT_COLOR_POOL.length]]));
+  const siteColorMap = Object.fromEntries(sites.map((s,i) => [s.id, s.color || PROJECT_COLOR_POOL[i % PROJECT_COLOR_POOL.length]]));
 
   function workerNamesOf(sc){
     const trade = tradeById[sc.tradeId];
@@ -2476,7 +2529,7 @@ function WorkerScheduleTab({ trades, sites, schedules }){
                     return (
                       <td
                         key={w}
-                        style={site ? { background: siteColorMap[site.id]+"38", color:"var(--ink)", fontWeight:700 } : {}}
+                        style={site ? { background: siteColorMap[site.id]+"55", color:"var(--ink)", fontWeight:700 } : {}}
                         title={site ? site.name : ""}
                       >
                         {site ? (site.abbreviation || site.name.slice(0,2)) : ""}
