@@ -610,6 +610,18 @@ function splitWorkerNames(str){
   if(!str) return [];
   return str.split(",").map(s => s.trim()).filter(Boolean);
 }
+// breaks an abbreviation longer than 3 chars (spaces included) into two clean lines —
+// at the space if there is one, otherwise at the midpoint — instead of an arbitrary
+// mid-character wrap
+function formatAbbrLines(text){
+  if(!text || text.length<=3) return [text];
+  if(text.includes(" ")){
+    const idx = text.indexOf(" ");
+    return [text.slice(0,idx), text.slice(idx+1)];
+  }
+  const mid = Math.ceil(text.length/2);
+  return [text.slice(0,mid), text.slice(mid)];
+}
 
 function loadLS(key, fallback){
   try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
@@ -1638,7 +1650,13 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                             style={{ flex:`1 1 ${100/weekSiteList.length}%`, background: siteColorMap[site.id]+"1c", borderLeftColor: siteColorMap[site.id] }}
                             title={site.name}
                           >
-                            {site.abbreviation ? <span className="site-label-abbr">{site.abbreviation}</span> : <span>{site.name}</span>}
+                            {site.abbreviation ? (
+                              <span className="site-label-abbr">
+                                {formatAbbrLines(site.abbreviation).map((line, i, arr) => (
+                                  <React.Fragment key={i}>{line}{i<arr.length-1 && <br/>}</React.Fragment>
+                                ))}
+                              </span>
+                            ) : <span>{site.name}</span>}
                           </div>
                         ))}
                       </div>
