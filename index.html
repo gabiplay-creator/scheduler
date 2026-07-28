@@ -570,6 +570,9 @@ const DEFAULT_TRADES = [
   { id:"grout", name:"메지", color:"#6C2BC9",
     contacts:[{id:"c-grout-1", name:"허연서", phone:"010-3809-3382", bank:"", account:"", isDefault:true}],
     note:"타일 시공 후 도면/주소 주고 날짜 잡음" },
+  { id:"misc", name:"기타(일당)", color:"#707070",
+    contacts:[{id:"c-misc-1", name:"", phone:"", bank:"", account:"", isDefault:true}],
+    note:"특정 공정에 속하지 않는 일당 인부 — 그날 여러 잡일을 할 수 있어요" },
 ];
 
 const TRADE_COLOR_POOL = [
@@ -1119,10 +1122,10 @@ function SiteDetailModal({ site, trades, schedules, onClose, onUpdateSite, onAdd
 }
 
 function DayWorkersModal({ site, date, trades, onClose, onSave }){
-  const [names, setNames] = useState(() => Object.fromEntries(trades.map(t => [t.id, t.workerName || ""])));
+  const [names, setNames] = useState(() => Object.fromEntries(trades.map(t => [t.key, t.workerName || ""])));
 
   function submit(){
-    onSave(Object.entries(names).map(([id, workerName]) => ({ id, workerName: workerName.trim() })));
+    onSave(trades.map(t => ({ id: t.id, isNew: t.isNew, tradeId: t.trade.id, workerName: (names[t.key] || "").trim() })));
     onClose();
   }
 
@@ -1137,18 +1140,18 @@ function DayWorkersModal({ site, date, trades, onClose, onSave }){
           <button className="close-x" onClick={onClose}>✕</button>
         </div>
 
-        <p style={{fontSize:12.5, color:"var(--ink-soft)", marginBottom:12}}>이 날짜에 진행되는 공정별로 작업자명을 지정하세요.</p>
+        <p style={{fontSize:12.5, color:"var(--ink-soft)", marginBottom:12}}>이 날짜에 진행되는 공정별로 작업자명을 지정하세요. "기타(일당)"은 특정 공정 없이 그날 여러 잡일을 한 인부를 기록할 때 씁니다.</p>
 
         {trades.map(t => (
-          <div className="field" key={t.id}>
+          <div className="field" key={t.key}>
             <label>
               <span className="trade-swatch" style={{background:t.trade.color, marginRight:6, display:"inline-block", verticalAlign:"middle"}} />
               {t.trade.name}
             </label>
             <input
               type="text"
-              value={names[t.id]}
-              onChange={e=>setNames(prev => ({...prev, [t.id]: e.target.value}))}
+              value={names[t.key]}
+              onChange={e=>setNames(prev => ({...prev, [t.key]: e.target.value}))}
               placeholder="예: 김철수"
             />
           </div>
@@ -1786,12 +1789,21 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                       ))}
                                       {(() => {
                                         const workers = [...new Set(item.trades.flatMap(t => splitWorkerNames(t.workerName)))];
-                                        const canEdit = item.trades.length>0;
+                                        const canEdit = true;
                                         return (
                                           <div
                                             className={"site-worker-row" + (canEdit ? " site-worker-row-clickable" : "")}
                                             title={canEdit ? "클릭해서 담당자 지정" : ""}
-                                            onClick={canEdit ? (e=>{ e.stopPropagation(); setWorkerEditor({ site: item.site, date: dateStr, trades: item.trades }); }) : undefined}
+                                            onClick={canEdit ? (e=>{
+                                              e.stopPropagation();
+                                              const modalTrades = item.trades.map(t => ({ key:t.id, id:t.id, isNew:false, trade:t.trade, workerName:t.workerName }));
+                                              const miscTrade = trades.find(tr => tr.id==="misc");
+                                              const hasMisc = item.trades.some(t => t.trade.id==="misc");
+                                              if(miscTrade && !hasMisc){
+                                                modalTrades.push({ key:"misc-new", id:null, isNew:true, trade:miscTrade, workerName:"" });
+                                              }
+                                              setWorkerEditor({ site: item.site, date: dateStr, trades: modalTrades });
+                                            }) : undefined}
                                           >
                                             {workers.length>0 ? <span>👷 {workers.join(", ")}</span> : (canEdit && <span className="site-worker-row-hint">+ 담당자 지정</span>)}
                                           </div>
@@ -1982,10 +1994,21 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
           trades={workerEditor.trades}
           onClose={()=>setWorkerEditor(null)}
           onSave={updates => {
-            setSchedules(prev => prev.map(sc => {
-              const found = updates.find(u => u.id===sc.id);
-              return found ? { ...sc, workerName: found.workerName } : sc;
-            }));
+            setSchedules(prev => {
+              let next = prev.map(sc => {
+                const found = updates.find(u => !u.isNew && u.id===sc.id);
+                return found ? { ...sc, workerName: found.workerName } : sc;
+              });
+              const toCreate = updates.filter(u => u.isNew && u.workerName);
+              toCreate.forEach(u => {
+                next = [...next, {
+                  id: uid(), siteId: workerEditor.site.id, tradeId: u.tradeId,
+                  startDate: workerEditor.date, endDate: workerEditor.date,
+                  contactId: "", workerName: u.workerName, laborUnits: null, memo: "",
+                }];
+              });
+              return next;
+            });
           }}
         />
       )}
