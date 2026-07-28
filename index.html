@@ -1220,7 +1220,7 @@ function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onCl
           <div className="field">
             <label>담당자 (연락용 거래처)</label>
             <select value={contactId} onChange={e=>setContactId(e.target.value)}>
-              {trade?.contacts.map(c => <option value={c.id} key={c.id}>{c.name}{c.isDefault ? " (기본)" : ""}</option>)}
+              {trade?.contacts.map(c => <option value={c.id} key={c.id}>{c.name || "(이름 미입력)"}{c.isDefault ? " (기본)" : ""}</option>)}
             </select>
           </div>
           <div className="field">
@@ -1295,7 +1295,7 @@ function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete })
           <div className="field">
             <label>담당자 (연락용 거래처)</label>
             <select value={contactId} onChange={e=>setContactId(e.target.value)}>
-              {trade?.contacts.map(c => <option value={c.id} key={c.id}>{c.name}{c.isDefault ? " (기본)" : ""}</option>)}
+              {trade?.contacts.map(c => <option value={c.id} key={c.id}>{c.name || "(이름 미입력)"}{c.isDefault ? " (기본)" : ""}</option>)}
             </select>
           </div>
           <div className="field">
@@ -1355,7 +1355,7 @@ function AddScheduleInline({ trade, onCancel, onAdd }){
       <div className="field" style={{marginBottom:0}}>
         <label>담당자 (연락용 거래처)</label>
         <select value={contactId} onChange={e=>setContactId(e.target.value)}>
-          {trade.contacts.map(c => <option value={c.id} key={c.id}>{c.name}{c.isDefault ? " (기본)" : ""}</option>)}
+          {trade.contacts.map(c => <option value={c.id} key={c.id}>{c.name || "(이름 미입력)"}{c.isDefault ? " (기본)" : ""}</option>)}
         </select>
       </div>
       <div className="field" style={{marginBottom:0}}>
