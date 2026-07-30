@@ -640,6 +640,14 @@ function formatAbbrLines(text){
   const mid = Math.ceil(text.length/2);
   return [text.slice(0,mid), text.slice(mid)];
 }
+// picks the blank (no name/phone/bank/account) contact as the default when adding a new
+// schedule, instead of auto-selecting the trade's designated default contact — falls back
+// to the first contact if the trade has no blank one
+function defaultContactId(trade){
+  if(!trade || !trade.contacts?.length) return "";
+  const blank = trade.contacts.find(c => !c.name && !c.phone && !c.bank && !c.account);
+  return blank ? blank.id : trade.contacts[0].id;
+}
 
 function loadLS(key, fallback){
   try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
@@ -1174,7 +1182,7 @@ function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onCl
   const trade = trades.find(t => t.id===tradeId);
   const [startDate, setStartDate] = useState(initialDate);
   const [endDate, setEndDate] = useState(initialDate);
-  const [contactId, setContactId] = useState(trade?.contacts[0]?.id || "");
+  const [contactId, setContactId] = useState(defaultContactId(trade));
   const [workerName, setWorkerName] = useState("");
   const [laborUnits, setLaborUnits] = useState("");
   const [memo, setMemo] = useState("");
@@ -1182,7 +1190,7 @@ function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onCl
   function handleTradeChange(id){
     setTradeId(id);
     const t = trades.find(x => x.id===id);
-    setContactId(t?.contacts[0]?.id || "");
+    setContactId(defaultContactId(t));
   }
   function handleStartChange(v){
     setStartDate(v);
@@ -1262,7 +1270,7 @@ function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete })
   const range = scheduleRange(schedule);
   const [startDate, setStartDate] = useState(range.start);
   const [endDate, setEndDate] = useState(range.end);
-  const [contactId, setContactId] = useState(schedule.contactId || trade?.contacts[0]?.id || "");
+  const [contactId, setContactId] = useState(schedule.contactId || defaultContactId(trade));
   const [workerName, setWorkerName] = useState(schedule.workerName || "");
   const [laborUnits, setLaborUnits] = useState(schedule.laborUnits!=null ? String(schedule.laborUnits) : "");
   const [memo, setMemo] = useState(schedule.memo || "");
@@ -1331,7 +1339,7 @@ function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete })
 function AddScheduleInline({ trade, onCancel, onAdd }){
   const [startDate, setStartDate] = useState(todayStr());
   const [endDate, setEndDate] = useState(todayStr());
-  const [contactId, setContactId] = useState(trade.contacts[0]?.id || "");
+  const [contactId, setContactId] = useState(defaultContactId(trade));
   const [workerName, setWorkerName] = useState("");
   const [laborUnits, setLaborUnits] = useState("");
   const [memo, setMemo] = useState("");
