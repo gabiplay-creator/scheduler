@@ -371,6 +371,7 @@
     display:flex;flex-direction:column;gap:0;overflow:hidden;min-height:0;
   }
   .site-day-block.empty-lane{background:transparent !important;}
+  .trade-slots-fill{display:flex;flex-direction:column;flex:1;min-height:0;justify-content:flex-start;}
   .trade-slot{
     min-height:38px;display:flex;align-items:center;overflow:visible;
   }
@@ -1765,30 +1766,32 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                       style={laneStyle}
                                       title={item.active ? titleText : ""}
                                     >
-                                      {tradeSlots.map((tr, ti) => (
-                                        <div
-                                          className={"trade-slot" + (tr ? "" : " trade-slot-empty")}
-                                          key={ti}
-                                          title={tr ? "" : "클릭해서 이 날짜에 공정 추가"}
-                                          onClick={tr ? undefined : (e=>{ e.stopPropagation(); setQuickAdd({siteId: item.site.id, date: dateStr}); })}
-                                        >
-                                          {tr && (
-                                            <div
-                                              className={"trade-day-chip" + (chipStyle==="text" ? " chip-text-mode" : "")}
-                                              style={chipStyle==="text" ? {background:"transparent"} : {background: tr.trade.color}}
-                                              title={`${item.site.name} · ${tr.trade.name}${tr.workerName ? " · "+tr.workerName : ""} (${tr.start} ~ ${tr.end}) — 드래그로 날짜 이동, 클릭하면 수정`}
-                                              draggable
-                                              onDragStart={e=>handleChipDragStart(e, tr.id, dateStr)}
-                                              onDragEnd={()=>setDragOverDate(null)}
-                                              onClick={e=>{ e.stopPropagation(); setEditingScheduleId(tr.id); }}
-                                            >
-                                              <span className="chip-main" style={{fontSize: chipFontSize+"px", ...(chipStyle==="text" ? {color: tr.trade.color, fontWeight:800} : {})}}>
-                                                {tr.trade.name}{tr.laborUnits!=null && ` ${tr.laborUnits}품`}{tr.memo && `(${tr.memo})`}
-                                              </span>
-                                            </div>
-                                          )}
-                                        </div>
-                                      ))}
+                                      <div className="trade-slots-fill">
+                                        {tradeSlots.map((tr, ti) => (
+                                          <div
+                                            className={"trade-slot" + (tr ? "" : " trade-slot-empty")}
+                                            key={ti}
+                                            title={tr ? "" : "클릭해서 이 날짜에 공정 추가"}
+                                            onClick={tr ? undefined : (e=>{ e.stopPropagation(); setQuickAdd({siteId: item.site.id, date: dateStr}); })}
+                                          >
+                                            {tr && (
+                                              <div
+                                                className={"trade-day-chip" + (chipStyle==="text" ? " chip-text-mode" : "")}
+                                                style={chipStyle==="text" ? {background:"transparent"} : {background: tr.trade.color}}
+                                                title={`${item.site.name} · ${tr.trade.name}${tr.workerName ? " · "+tr.workerName : ""} (${tr.start} ~ ${tr.end}) — 드래그로 날짜 이동, 클릭하면 수정`}
+                                                draggable
+                                                onDragStart={e=>handleChipDragStart(e, tr.id, dateStr)}
+                                                onDragEnd={()=>setDragOverDate(null)}
+                                                onClick={e=>{ e.stopPropagation(); setEditingScheduleId(tr.id); }}
+                                              >
+                                                <span className="chip-main" style={{fontSize: chipFontSize+"px", ...(chipStyle==="text" ? {color: tr.trade.color, fontWeight:800} : {})}}>
+                                                  {tr.trade.name}{tr.laborUnits!=null && ` ${tr.laborUnits}품`}{tr.memo && `(${tr.memo})`}
+                                                </span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
                                       {(() => {
                                         const workers = [...new Set(item.trades.flatMap(t => splitWorkerNames(t.workerName)))];
                                         const canEdit = true;
