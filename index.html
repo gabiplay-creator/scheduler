@@ -1766,7 +1766,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                   const siteColor = siteColorMap[item.site.id];
                                   const titleText = `${item.site.name}${item.start && item.end ? ` 전체공사 (${item.start} ~ ${item.end})` : ""}`;
                                   const laneStyle = { flex: items.length ? `1 1 ${100/items.length}%` : "1", background: item.active ? siteColor + "48" : "transparent" };
-                                  const tradeSlots = Array.from({length:3}, (_, i) => item.trades[i] || null);
+                                  const tradeSlots = Array.from({length: Math.max(3, item.trades.length)}, (_, i) => item.trades[i] || null);
                                   return (
                                     <div
                                       key={idx}
