@@ -363,6 +363,16 @@
   .day-sched{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--paper-line);border-radius:10px;margin-bottom:8px;}
   .day-sched .swatch-bar{width:4px;border-radius:3px;align-self:stretch;}
 
+  /* 출근 인원 칸 (현장별 맨 아래 줄) */
+  .day-note-cell{border:1px solid var(--excel-line-soft);border-top:1px dashed var(--excel-line-soft);min-height:18px;display:flex;}
+  .day-note-cell input{
+    width:100%;border:none;background:transparent;font-size:10px;line-height:1.2;padding:2px 5px;color:var(--ink);font-family:var(--sans);
+  }
+  .day-note-cell input::placeholder{color:rgba(0,0,0,.22);}
+  .day-note-cell input:focus{outline:1.5px solid var(--accent);outline-offset:-1.5px;background:rgba(255,255,255,.6);}
+  @media print{ .day-note-cell input::placeholder{color:transparent;} }
+  .drop-target{box-shadow:inset 0 0 0 2px var(--accent) !important;}
+
   /* 공정 클릭 정보창 */
   .info-contact{
     display:flex;justify-content:space-between;align-items:flex-end;gap:12px;
@@ -724,6 +734,8 @@ function App(){
   const [sites, setSites] = useSyncedState("sites", []);
   const [schedules, setSchedules] = useSyncedState("schedules", []);
   const [vendors, setVendors] = useSyncedState("vendors", DEFAULT_VENDORS);
+  // 현장별·날짜별 출근 인원 메모 (캘린더 각 현장 맨 아래 칸)
+  const [dayNotes, setDayNotes] = useSyncedState("dayNotes", []);
   const [synced, setSynced] = useState(false);
 
   useEffect(() => { setSynced(fbReady()); }, []);
@@ -787,7 +799,7 @@ function App(){
           <SitesTab sites={sites} setSites={setSites} trades={trades} schedules={schedules} setSchedules={setSchedules} />
         )}
         {tab==="calendar" && (
-          <CalendarTab sites={sites} trades={trades} schedules={schedules} setSchedules={setSchedules} />
+          <CalendarTab sites={sites} trades={trades} setTrades={setTrades} schedules={schedules} setSchedules={setSchedules} dayNotes={dayNotes} setDayNotes={setDayNotes} />
         )}
         {tab==="contacts" && (
           <ContactsTab trades={trades} setTrades={setTrades} schedules={schedules} setSchedules={setSchedules} />
@@ -1239,8 +1251,13 @@ function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onCl
   const orderedTrades = useMemo(()=>sortedTradeList(trades), [trades]);
   const [siteId, setSiteId] = useState(initialSiteId || sites[0]?.id || "");
   const site = sites.find(s => s.id===siteId);
-  const [tradeId, setTradeId] = useState(orderedTrades[0]?.id || "");
-  const trade = trades.find(t => t.id===tradeId);
+  const CUSTOM = "__custom__";
+  const [tradeId, setTradeId] = useState(CUSTOM); // 기본은 "직접 입력"
+  const [customName, setCustomName] = useState("");
+  const isCustom = tradeId===CUSTOM;
+  // 직접 입력한 이름이 이미 있는 공정과 같으면 그 공정으로 연결합니다
+  const matchedTrade = isCustom ? trades.find(t => t.name===customName.trim()) : null;
+  const trade = isCustom ? matchedTrade : trades.find(t => t.id===tradeId);
   const [startDate, setStartDate] = useState(initialDate);
   const [endDate, setEndDate] = useState(initialDate);
   const [contactId, setContactId] = useState(defaultContactId(trade));
@@ -1259,9 +1276,11 @@ function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onCl
   }
   function submit(){
     if(!siteId){ alert("현장을 선택해주세요."); return; }
-    if(!tradeId){ alert("공정을 선택해주세요."); return; }
+    if(isCustom && !customName.trim()){ alert("공정명을 입력해주세요."); return; }
+    if(!isCustom && !tradeId){ alert("공정을 선택해주세요."); return; }
     if(!startDate || !endDate){ alert("시작일과 종료일을 입력해주세요."); return; }
-    onAdd(siteId, { tradeId, startDate, endDate: endDate<startDate ? startDate : endDate, contactId, workerName: workerName.trim(), laborUnits: laborUnits==="" ? null : Number(laborUnits), memo });
+    const finalContactId = isCustom ? defaultContactId(matchedTrade) : contactId;
+    onAdd(siteId, { tradeId: isCustom ? (matchedTrade?.id || null) : tradeId, contactId: finalContactId, startDate, endDate: endDate<startDate ? startDate : endDate, workerName: workerName.trim(), laborUnits: laborUnits==="" ? null : Number(laborUnits), memo }, isCustom && !matchedTrade ? customName.trim() : null);
   }
 
   return (
@@ -1287,15 +1306,23 @@ function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onCl
           <div className="field">
             <label>공정</label>
             <select value={tradeId} onChange={e=>handleTradeChange(e.target.value)}>
+              <option value={CUSTOM}>✏️ 직접 입력</option>
               {orderedTrades.map(t => <option value={t.id} key={t.id}>{t.name}</option>)}
             </select>
           </div>
-          <div className="field">
-            <label>담당자 (연락용 거래처)</label>
-            <select value={contactId} onChange={e=>setContactId(e.target.value)}>
-              {trade?.contacts.map(c => <option value={c.id} key={c.id}>{c.name || "(이름 미입력)"}{c.isDefault ? " (기본)" : ""}</option>)}
-            </select>
-          </div>
+          {isCustom ? (
+            <div className="field">
+              <label>공정명 직접 입력{customName.trim() && (matchedTrade ? " · 기존 공정과 연결" : " · 새 공정으로 추가")}</label>
+              <input type="text" autoFocus value={customName} onChange={e=>setCustomName(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") submit(); }} placeholder="예: 방수, 양중, 발주" />
+            </div>
+          ) : (
+            <div className="field">
+              <label>담당자 (연락용 거래처)</label>
+              <select value={contactId} onChange={e=>setContactId(e.target.value)}>
+                {trade?.contacts.map(c => <option value={c.id} key={c.id}>{c.name || "(이름 미입력)"}{c.isDefault ? " (기본)" : ""}</option>)}
+              </select>
+            </div>
+          )}
           <div className="field">
             <label>작업자명 (직접 입력)</label>
             <input type="text" value={workerName} onChange={e=>setWorkerName(e.target.value)} placeholder="예: 김철수" />
@@ -1349,84 +1376,25 @@ function resolveContact(sc, trade){
   return trade.contacts.find(c => c.isDefault && !isBlank(c)) || trade.contacts.find(c => !isBlank(c)) || null;
 }
 
-function ScheduleInfoModal({ schedule, trade, site, allSchedules, onClose, onEdit }){
-  const contact = resolveContact(schedule, trade);
-  const { start, end } = scheduleRange(schedule);
-  const days = daySpan(schedule);
-  const units = effectiveUnits(schedule);
-  const unitsEntered = schedule.laborUnits!=null;
-  const wage = effectiveDailyWage(schedule, contact);
-  const total = wage!=null ? units * wage : null;
-
-  // 같은 현장·같은 공정으로 나눠 입력된 일정이 여러 건이면 공정 전체 합계도 보여줍니다.
-  const sameTrade = allSchedules.filter(s => s.siteId===schedule.siteId && s.tradeId===schedule.tradeId);
-  const tradeDays = sameTrade.reduce((sum,s) => sum + daySpan(s), 0);
-  const tradeUnits = sameTrade.reduce((sum,s) => sum + effectiveUnits(s), 0);
-  const tradeMoneyParts = sameTrade.map(s => {
-    const w = effectiveDailyWage(s, resolveContact(s, trade));
-    return w!=null ? effectiveUnits(s) * w : null;
-  });
-  const tradeMoney = tradeMoneyParts.every(v => v!=null) ? tradeMoneyParts.reduce((a,b)=>a+b, 0) : null;
-
-  const row = (label, value, strong) => (
-    <div className="info-row">
-      <span className="info-label">{label}</span>
-      <span className={"info-value" + (strong ? " strong" : "")}>{value}</span>
-    </div>
-  );
-
+// 캘린더 각 현장 맨 아래의 "그날 출근 인원" 칸. 입력을 마치고 칸을 벗어나거나
+// Enter를 누르면 저장됩니다 (글자마다 저장하지 않아 여러 명이 동시에 써도 덜 엉킵니다).
+function DayNoteCell({ value, onSave, style }){
+  const [text, setText] = useState(value);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => { if(!focused) setText(value); }, [value, focused]);
+  function commit(){ setFocused(false); if(text.trim()!==(value||"").trim()) onSave(text); }
   return (
-    <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
-      <div className="modal" style={{maxWidth:480}}>
-        <div className="modal-head">
-          <div>
-            <p className="eyebrow">SCHEDULE INFO</p>
-            <h3 style={{display:"flex", alignItems:"center", gap:8}}>
-              <span className="trade-swatch" style={{background:trade?.color, width:12, height:12}} />
-              {site?.name} · {trade?.name}
-            </h3>
-          </div>
-          <button className="close-x" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="info-contact">
-          <div>
-            <div className="info-label">담당자</div>
-            <div className="info-contact-name">
-              {contact?.name || "미지정"}
-              {schedule.workerName && <span className="info-sub"> · 작업자 {schedule.workerName}</span>}
-            </div>
-          </div>
-          <div style={{textAlign:"right"}}>
-            <div className="info-label">연락처</div>
-            {contact?.phone
-              ? <a className="info-phone" href={"tel:"+contact.phone.replace(/[^0-9+]/g,"")}>{contact.phone}</a>
-              : <span className="info-sub">미등록</span>}
-          </div>
-        </div>
-
-        <div className="info-box">
-          {row("품수", unitsEntered ? `${units}품` : `${units}품 (미입력 · 일수 기준)`, true)}
-          {row("일당", wage!=null ? won(wage) : "미입력")}
-          {row("합계 (품수 × 일당)", total!=null ? won(total) : "일당을 입력하면 계산돼요", true)}
-        </div>
-
-        {sameTrade.length>1 && (
-          <div className="info-box" style={{marginTop:10}}>
-            <div className="info-label" style={{marginBottom:6}}>이 현장 {trade?.name} 전체 ({sameTrade.length}건)</div>
-            {row("총 나오는 날", `${tradeDays}일`)}
-            {row("총 품수", `${tradeUnits}품`)}
-            {row("총 금액", tradeMoney!=null ? won(tradeMoney) : "일당 미입력 일정 있음")}
-          </div>
-        )}
-
-        {schedule.memo && <p style={{fontSize:13, color:"var(--ink-soft)", margin:"12px 0 0"}}>메모: {schedule.memo}</p>}
-
-        <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose}>닫기</button>
-          <button className="btn btn-primary" onClick={onEdit}>일정 수정</button>
-        </div>
-      </div>
+    <div className="day-note-cell" style={style}>
+      <input
+        type="text"
+        value={text}
+        placeholder="인원"
+        title="그날 출근한 인원 기입"
+        onFocus={()=>setFocused(true)}
+        onChange={e=>setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e=>{ if(e.key==="Enter") e.currentTarget.blur(); if(e.key==="Escape"){ setText(value); setFocused(false); e.currentTarget.blur(); } }}
+      />
     </div>
   );
 }
@@ -1435,7 +1403,7 @@ function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete })
   const range = scheduleRange(schedule);
   const [startDate, setStartDate] = useState(range.start);
   const [endDate, setEndDate] = useState(range.end);
-  const [contactId, setContactId] = useState(schedule.contactId || defaultContactId(trade));
+  const [contactId, setContactId] = useState(resolveContact(schedule, trade)?.id || schedule.contactId || defaultContactId(trade));
   const [workerName, setWorkerName] = useState(schedule.workerName || "");
   const [laborUnits, setLaborUnits] = useState(schedule.laborUnits!=null ? String(schedule.laborUnits) : "");
   const [dailyWage, setDailyWage] = useState(schedule.dailyWage!=null ? String(schedule.dailyWage) : "");
@@ -1472,7 +1440,7 @@ function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete })
             <input type="date" value={endDate} min={startDate} onChange={e=>setEndDate(e.target.value)} />
           </div>
           <div className="field">
-            <label>담당자 (연락용 거래처)</label>
+            <label>담당자 (연락용 거래처){(() => { const ph = trade?.contacts.find(c=>c.id===contactId)?.phone; return ph ? <> · <a href={"tel:"+ph.replace(/[^0-9+]/g,"")} style={{color:"var(--navy)", fontWeight:800}}>{ph}</a></> : null; })()}</label>
             <select value={contactId} onChange={e=>setContactId(e.target.value)}>
               {trade?.contacts.map(c => <option value={c.id} key={c.id}>{c.name || "(이름 미입력)"}{c.isDefault ? " (기본)" : ""}</option>)}
             </select>
@@ -1659,7 +1627,16 @@ function SiteMultiSelect({ sites, selectedSiteIds, onChange }){
   );
 }
 
-function CalendarTab({ sites, trades, schedules, setSchedules }){
+function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNotes, setDayNotes }){
+  const dayNoteMap = useMemo(() => Object.fromEntries(dayNotes.map(n => [n.id, n.text])), [dayNotes]);
+  function saveDayNote(siteId, dateStr, text){
+    const id = `${siteId}_${dateStr}`;
+    const clean = text.trim();
+    setDayNotes(prev => {
+      const others = prev.filter(n => n.id!==id);
+      return clean ? [...others, { id, siteId, date: dateStr, text: clean }] : others;
+    });
+  }
   const [view, setView] = useState("month"); // "month" | "agenda"
   const [cursor, setCursor] = useState(() => { const d = new Date(); return {y: d.getFullYear(), m: d.getMonth()}; });
   const [selectedSiteIds, setSelectedSiteIds] = useState(null); // null = not yet initialized; after the auto-default effect below runs once, always an explicit array
@@ -1685,7 +1662,6 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   const [selectedDate, setSelectedDate] = useState(null); // full "YYYY-MM-DD" string, or null
   const [dragOverDate, setDragOverDate] = useState(null);
   const [editingScheduleId, setEditingScheduleId] = useState(null);
-  const [infoScheduleId, setInfoScheduleId] = useState(null); // 공정 클릭 시 담당자·연락처·품수 정보창
   const [quickAdd, setQuickAdd] = useState(null); // { siteId, date } or null
   const [workerEditor, setWorkerEditor] = useState(null); // { site, date, trades } or null
 
@@ -1996,7 +1972,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                           slotsRender.push(cells);
                         }
                         const rowStart = rowCursor;
-                        const rowEnd = rowCursor + slotCount;
+                        const rowEnd = rowCursor + slotCount + 1; // +1 = 맨 아래 출근 인원 칸
                         rowCursor = rowEnd;
                         return { site, sidx, rowStart, rowEnd, slotCount, slotsRender };
                       });
@@ -2030,9 +2006,12 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                   return (
                                     <div
                                       key={ci}
-                                      className="trade-slot-empty"
+                                      className={"trade-slot-empty" + (dragOverDate===c.dateStr ? " drop-target" : "")}
                                       style={{gridColumn:`${c.colStart+1} / ${c.colEnd+1}`, gridRow: rowLine, ...extraStyle, background: siteBgMap[site.id]}}
                                       title="클릭해서 이 날짜에 공정 추가"
+                                      onDragOver={e=>e.preventDefault()}
+                                      onDragEnter={e=>{ e.preventDefault(); setDragOverDate(c.dateStr); }}
+                                      onDrop={e=>{ e.stopPropagation(); handleCellDrop(e, c.dateStr); }}
                                       onClick={e=>{ e.stopPropagation(); setQuickAdd({siteId: site.id, date: c.dateStr}); }}
                                     />
                                   );
@@ -2043,20 +2022,33 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                 return (
                                   <div
                                     key={ci}
-                                    className="trade-day-chip"
+                                    className={"trade-day-chip" + (dragOverDate===c.dateStr ? " drop-target" : "")}
                                     style={{ gridColumn:`${c.colStart+1} / ${c.colEnd+1}`, gridRow: rowLine, ...extraStyle, background: deepenColor(siteBgMap[site.id], 0.1) }}
-                                    title={`${site.name} · ${tr.trade.name}${sc.workerName ? " · "+sc.workerName : ""}${sc.memo ? " · "+sc.memo : ""} (${r.start} ~ ${r.end}) — 클릭하면 담당자·연락처·품수 보기, 드래그로 날짜 이동`}
+                                    title={`${site.name} · ${tr.trade.name}${sc.workerName ? " · "+sc.workerName : ""}${sc.memo ? " · "+sc.memo : ""} (${r.start} ~ ${r.end}) — 클릭하면 수정, 드래그로 날짜 이동`}
                                     draggable
                                     onDragStart={e=>handleChipDragStart(e, sc.id, c.dateStr)}
                                     onDragEnd={()=>setDragOverDate(null)}
-                                    onClick={e=>{ e.stopPropagation(); setInfoScheduleId(sc.id); }}
+                                    onDragOver={e=>e.preventDefault()}
+                                    onDragEnter={e=>{ e.preventDefault(); setDragOverDate(c.dateStr); }}
+                                    onDrop={e=>{ e.stopPropagation(); handleCellDrop(e, c.dateStr); }}
+                                    onClick={e=>{ e.stopPropagation(); setEditingScheduleId(sc.id); }}
                                   >
                                     <span className="chip-main" style={{fontSize: chipFontSize+"px"}}>
-                                      {tr.trade.name}{site.manager && ` (${site.manager})`}
+                                      {tr.trade.name}{sc.memo && ` ${sc.memo}`}
                                     </span>
                                   </div>
                                 );
                               }))}
+                              {dateStrs.map((ds, d) => ds ? (
+                                <DayNoteCell
+                                  key={"note"+d}
+                                  value={dayNoteMap[`${site.id}_${ds}`] || ""}
+                                  onSave={text => saveDayNote(site.id, ds, text)}
+                                  style={{ gridColumn: d+2, gridRow: rowEnd-1, background: siteBgMap[site.id] }}
+                                />
+                              ) : (
+                                <div key={"note"+d} style={{ gridColumn: d+2, gridRow: rowEnd-1 }} />
+                              ))}
                             </React.Fragment>
                           ))}
                         </div>
@@ -2132,21 +2124,6 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
       )}
 
 
-      {infoScheduleId && (() => {
-        const sc = schedules.find(s => s.id===infoScheduleId);
-        if(!sc) return null;
-        return (
-          <ScheduleInfoModal
-            schedule={sc}
-            trade={tradeById[sc.tradeId]}
-            site={siteById[sc.siteId]}
-            allSchedules={schedules}
-            onClose={()=>setInfoScheduleId(null)}
-            onEdit={()=>{ setInfoScheduleId(null); setEditingScheduleId(sc.id); }}
-          />
-        );
-      })()}
-
       {editingScheduleId && (() => {
         const sc = schedules.find(s => s.id===editingScheduleId);
         if(!sc) return null;
@@ -2159,7 +2136,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
             site={site}
             onClose={()=>setEditingScheduleId(null)}
             onSave={patch => { setSchedules(prev => prev.map(s => s.id===sc.id ? {...s, ...patch} : s)); setEditingScheduleId(null); }}
-            onDelete={() => { if(confirm(`"${site?.name} · ${trade?.name}" 일정을 삭제할까요?`)){ setSchedules(prev=>prev.filter(s=>s.id!==sc.id)); setEditingScheduleId(null); } }}
+            onDelete={() => { setSchedules(prev=>prev.filter(s=>s.id!==sc.id)); setEditingScheduleId(null); }}
           />
         );
       })()}
@@ -2171,7 +2148,16 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
           trades={trades}
           initialDate={quickAdd.date}
           onClose={()=>setQuickAdd(null)}
-          onAdd={(siteId, sc) => { setSchedules(prev => [...prev, { ...sc, id: uid(), siteId }]); setQuickAdd(null); }}
+          onAdd={(siteId, sc, newTradeName) => {
+            let tradeId = sc.tradeId;
+            if(newTradeName){
+              tradeId = "trade-" + uid();
+              const color = nextTradeColor(trades.map(t=>t.color));
+              setTrades(prev => [...prev, { id: tradeId, name: newTradeName, color, note: "", contacts: [{ id: uid(), name:"", phone:"", bank:"", account:"", isDefault:true }] }]);
+            }
+            setSchedules(prev => [...prev, { ...sc, tradeId, id: uid(), siteId }]);
+            setQuickAdd(null);
+          }}
         />
       )}
 
