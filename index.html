@@ -126,6 +126,12 @@
   .site-card:active{cursor:grabbing;}
   .site-card.drag-over{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent);}
   .drag-handle{position:absolute;top:12px;right:22px;color:var(--paper-line);font-size:16px;letter-spacing:-2px;}
+  .site-card.site-ended{background:#E7E5E0;filter:grayscale(.35);}
+  .site-card.site-ended .site-name,.site-card.site-ended .site-addr{color:var(--ink-soft);}
+  .badge-ended{
+    font-family:var(--mono);font-size:11px;font-weight:800;background:var(--ink-soft);color:#fff;
+    padding:3px 8px;border-radius:5px;letter-spacing:.03em;margin-left:8px;vertical-align:middle;display:inline-block;
+  }
   .site-card .corner{
     position:absolute;top:0;right:0;width:0;height:0;
     border-style:solid;border-width:0 18px 18px 0;
@@ -191,7 +197,12 @@
   /* trades / contacts */
   .trade-list{display:flex;flex-direction:column;gap:10px;}
   .trade-row{
-    display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--paper-line);border-radius:10px;background:var(--card);
+    display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--paper-line);border-radius:10px;background:var(--paper);
+  }
+  .trade-row.trade-row-active{background:#fff;border-color:var(--accent);box-shadow:0 2px 8px rgba(226,121,47,.18);}
+  .badge-active-now{
+    font-family:var(--mono);font-size:10px;font-weight:800;background:var(--accent);color:#fff;
+    padding:2px 7px;border-radius:5px;letter-spacing:.03em;margin-left:8px;vertical-align:middle;display:inline-block;
   }
   .trade-swatch{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
   .trade-info{flex:1;min-width:0;}
@@ -313,10 +324,13 @@
   .cal-cell.month-boundary-left{border-left:3px solid var(--navy) !important;}
   .week-row.week-stripe-a .cal-cell{border-top:2px solid #B7CBDC;}
   .week-row.week-stripe-b .cal-cell{border-top:2px solid #D9C9A6;}
-  .cal-month-watermark{
-    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-    font-family:var(--mono);font-weight:800;font-size:min(18vw,220px);line-height:1;
-    color:var(--navy-deep);opacity:.13;pointer-events:none;z-index:3;user-select:none;white-space:nowrap;
+  .cal-month-rail-spacer{width:46px;flex-shrink:0;}
+  .cal-month-badge{
+    width:46px;flex-shrink:0;align-self:flex-start;position:sticky;top:10px;
+    margin-right:6px;background:var(--navy-deep);color:#fff;
+    font-family:var(--mono);font-weight:800;font-size:13px;line-height:1.3;
+    text-align:center;border-radius:9px;padding:9px 2px;box-shadow:0 3px 9px rgba(22,35,63,.28);
+    z-index:6;user-select:none;
   }
   .cal-legend-card{margin-top:14px;padding:14px 18px;}
   @media (max-width:900px){
@@ -346,7 +360,7 @@
   .cal-cell.picked{border-color:var(--navy);box-shadow:inset 0 0 0 1.5px var(--navy);}
   .cal-cell.drag-over{border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--accent);background:var(--accent-soft);}
   .cal-cell:hover:not(.empty-cell){border-color:var(--steel);}
-  .cal-date{font-family:var(--mono);font-size:17px;font-weight:800;color:var(--ink-soft);padding:5px 6px 3px;display:flex;justify-content:space-between;align-items:baseline;line-height:1;}
+  .cal-date{font-family:var(--mono);font-size:19px;font-weight:800;color:var(--navy-deep);padding:5px 6px 3px;display:flex;justify-content:space-between;align-items:baseline;line-height:1;}
   .cal-date-sun{color:#C0392B;}
   .cal-date-sat{color:#1B5E86;}
   .cal-dow-inline{font-size:14px;margin-left:5px;opacity:.85;}
@@ -682,6 +696,25 @@ function defaultContactId(trade){
   return blank ? blank.id : trade.contacts[0].id;
 }
 
+// 공정 목록을 공사 진행 순서대로 정렬합니다: 철거→샤시→타일→배관→가구→도배→중문→
+// 장판→마감→입주청소→입주. 이 목록에 없는 공정(목공/도기/전기 등 기존 공정, 혹은
+// 새로 추가한 공정)은 그 뒤에 가나다순으로 배치됩니다.
+const TRADE_ORDER_SEQUENCE = ["철거","샤시","샷시","타일","배관","가구","도배","중문","장판","마감","입주청소","입주"];
+function sortedTradeList(list){
+  return [...list].sort((a,b) => {
+    const ai = TRADE_ORDER_SEQUENCE.indexOf(a.name);
+    const bi = TRADE_ORDER_SEQUENCE.indexOf(b.name);
+    if(ai!==-1 && bi!==-1) return ai-bi;
+    if(ai!==-1) return -1;
+    if(bi!==-1) return 1;
+    return a.name.localeCompare(b.name, "ko");
+  });
+}
+// 현장의 전체 공사기간이 오늘보다 이전에 끝났으면 "종료"된 것으로 봅니다.
+function isSiteEnded(site, today){
+  return !!(site.projectEnd && site.projectEnd < (today || todayStr()));
+}
+
 function loadLS(key, fallback){
   try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
   catch(e){ return fallback; }
@@ -718,7 +751,7 @@ function excelDataUrlToHtml(dataUrl){
 
 /* ---------- root ---------- */
 function App(){
-  const [tab, setTab] = useState("sites");
+  const [tab, setTab] = useState("calendar");
   const [trades, setTrades] = useSyncedState("trades", DEFAULT_TRADES);
   const [sites, setSites] = useSyncedState("sites", []);
   const [schedules, setSchedules] = useSyncedState("schedules", []);
@@ -771,8 +804,8 @@ function App(){
           <h1 className="title">공정표</h1>
           <p className="subtitle">현장 · 공사 담당자 · 캘린더를 한곳에서 관리합니다</p>
           <div className="tabs">
-            <button className={"tab" + (tab==="sites"?" active":"")} onClick={()=>setTab("sites")}>현장관리</button>
             <button className={"tab" + (tab==="calendar"?" active":"")} onClick={()=>setTab("calendar")}>공사캘린더</button>
+            <button className={"tab" + (tab==="sites"?" active":"")} onClick={()=>setTab("sites")}>현장관리</button>
             <button className={"tab" + (tab==="contacts"?" active":"")} onClick={()=>setTab("contacts")}>거래처관리</button>
             <button className={"tab" + (tab==="vendors"?" active":"")} onClick={()=>setTab("vendors")}>기타거래처</button>
             <button className={"tab" + (tab==="labor"?" active":"")} onClick={()=>setTab("labor")}>담당자관리</button>
@@ -819,6 +852,7 @@ function SitesTab({ sites, setSites, trades, schedules, setSchedules }){
 
   const detailSite = sites.find(s => s.id === detailSiteId);
   const orderedSites = [...sites].sort((a,b) => (a.order??0) - (b.order??0));
+  const todayFull = todayStr();
 
   function addSite(site){
     setSites(prev => {
@@ -868,9 +902,11 @@ function SitesTab({ sites, setSites, trades, schedules, setSchedules }){
         <div className="empty"><b>등록된 현장이 없습니다.</b><br/>“새 현장 추가”를 눌러 주소와 도면을 등록해보세요.</div>
       ) : (
         <div className="grid-sites">
-          {orderedSites.map(site => (
+          {orderedSites.map(site => {
+            const ended = isSiteEnded(site, todayFull);
+            return (
             <div
-              className={"card site-card" + (dragOverSiteId===site.id ? " drag-over" : "")}
+              className={"card site-card" + (dragOverSiteId===site.id ? " drag-over" : "") + (ended ? " site-ended" : "")}
               key={site.id}
               draggable
               onDragStart={e=>{ e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/plain", site.id); }}
@@ -883,7 +919,7 @@ function SitesTab({ sites, setSites, trades, schedules, setSchedules }){
             >
               <div className="corner" />
               <span className="drag-handle">⠿</span>
-              <p className="site-name">{site.name}</p>
+              <p className="site-name">{site.name}{ended && <span className="badge-ended">종료</span>}</p>
               <p className="site-addr">📍 {site.address || "주소 미등록"}</p>
               {site.projectStart && site.projectEnd && (
                 <p className="site-addr">🗂 전체 공사: {site.projectStart} ~ {site.projectEnd} ({daySpan({startDate:site.projectStart, endDate:site.projectEnd})}일)</p>
@@ -902,7 +938,8 @@ function SitesTab({ sites, setSites, trades, schedules, setSchedules }){
                 <button className="btn btn-danger btn-sm" onClick={()=>deleteSite(site.id)}>삭제</button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -1095,14 +1132,16 @@ function SiteDetailModal({ site, trades, schedules, onClose, onUpdateSite, onAdd
 
         <p className="eyebrow" style={{marginBottom:8}}>TRADES / 공사별 일정 (기간) — 클릭하면 수정</p>
         <div className="trade-list">
-          {trades.map(trade => {
+          {sortedTradeList(trades).map(trade => {
             const tradeSchedules = schedules.filter(s => s.tradeId===trade.id);
+            const todayFull = todayStr();
+            const activeNow = tradeSchedules.some(sc => { const {start,end} = scheduleRange(sc); return todayFull>=start && todayFull<=end; });
             return (
-              <div className="trade-row" key={trade.id} style={{flexDirection:"column", alignItems:"stretch"}}>
+              <div className={"trade-row" + (activeNow ? " trade-row-active" : "")} key={trade.id} style={{flexDirection:"column", alignItems:"stretch"}}>
                 <div style={{display:"flex", alignItems:"center", gap:12}}>
                   <span className="trade-swatch" style={{background:trade.color}} />
                   <div className="trade-info">
-                    <div className="trade-name">{trade.name}</div>
+                    <div className="trade-name">{trade.name}{activeNow && <span className="badge-active-now">진행중</span>}</div>
                     {tradeSchedules.length===0 && <div className="trade-note">{trade.note}</div>}
                   </div>
                   <button className="btn btn-ghost btn-sm" onClick={()=>setAddingTradeId(addingTradeId===trade.id ? null : trade.id)}>
@@ -1209,9 +1248,10 @@ function DayWorkersModal({ site, date, trades, onClose, onSave }){
 }
 
 function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onClose, onAdd }){
+  const orderedTrades = useMemo(()=>sortedTradeList(trades), [trades]);
   const [siteId, setSiteId] = useState(initialSiteId || sites[0]?.id || "");
   const site = sites.find(s => s.id===siteId);
-  const [tradeId, setTradeId] = useState(trades[0]?.id || "");
+  const [tradeId, setTradeId] = useState(orderedTrades[0]?.id || "");
   const trade = trades.find(t => t.id===tradeId);
   const [startDate, setStartDate] = useState(initialDate);
   const [endDate, setEndDate] = useState(initialDate);
@@ -1259,7 +1299,7 @@ function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onCl
           <div className="field">
             <label>공정</label>
             <select value={tradeId} onChange={e=>handleTradeChange(e.target.value)}>
-              {trades.map(t => <option value={t.id} key={t.id}>{t.name}</option>)}
+              {orderedTrades.map(t => <option value={t.id} key={t.id}>{t.name}</option>)}
             </select>
           </div>
           <div className="field">
@@ -1503,7 +1543,7 @@ function SiteMultiSelect({ sites, selectedSiteIds, onChange }){
           ) : sites.map(s => (
             <label className="site-multiselect-item" key={s.id}>
               <input type="checkbox" checked={isChecked(s.id)} onChange={()=>toggleSite(s.id)} />
-              {s.name}
+              {s.name}{isSiteEnded(s) && <span style={{color:"var(--ink-soft)", fontWeight:600}}> (종료)</span>}
             </label>
           ))}
         </div>
@@ -1515,7 +1555,17 @@ function SiteMultiSelect({ sites, selectedSiteIds, onChange }){
 function CalendarTab({ sites, trades, schedules, setSchedules }){
   const [view, setView] = useState("month"); // "month" | "agenda"
   const [cursor, setCursor] = useState(() => { const d = new Date(); return {y: d.getFullYear(), m: d.getMonth()}; });
-  const [selectedSiteIds, setSelectedSiteIds] = useState(null); // null = all sites; otherwise array of selected site ids
+  const [selectedSiteIds, setSelectedSiteIds] = useState(null); // null = not yet initialized; after the auto-default effect below runs once, always an explicit array
+  const didInitSiteFilter = useRef(false);
+  // 캘린더를 처음 열었을 때는 전체 현장이 아니라, 아직 끝나지 않은(종료되지 않은) 현장만
+  // 기본으로 선택되도록 합니다. 현장 목록이 아직 로딩 중(빈 배열)일 때는 기다립니다.
+  useEffect(() => {
+    if(didInitSiteFilter.current) return;
+    if(sites.length===0) return;
+    didInitSiteFilter.current = true;
+    const activeIds = sites.filter(s => !isSiteEnded(s)).map(s => s.id);
+    setSelectedSiteIds(activeIds.length ? activeIds : sites.map(s=>s.id));
+  }, [sites]);
   const [chipStyle, setChipStyle] = useState(() => loadLS("scheduler:chipStyle", "fill")); // "fill" | "text"
   const [chipFontSize, setChipFontSize] = useState(() => loadLS("scheduler:chipFontSize", 28));
   useEffect(() => saveLS("scheduler:chipFontSize", chipFontSize), [chipFontSize]);
@@ -1712,15 +1762,21 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
 
     return (
       <div className="card cal-continuous">
-        <div className="cal-dow-row">
-          <div className="cal-dow-spacer" />
-          {DOW.map((d,i) => <div className={"cal-dow" + (i===0?" cal-date-sun":"") + (i===6?" cal-date-sat":"")} key={d}>{d}</div>)}
+        <div style={{display:"flex"}}>
+          <div className="cal-month-rail-spacer" />
+          <div className="cal-dow-row" style={{flex:1, minWidth:0}}>
+            <div className="cal-dow-spacer" />
+            {DOW.map((d,i) => <div className={"cal-dow" + (i===0?" cal-date-sun":"") + (i===6?" cal-date-sat":"")} key={d}>{d}</div>)}
+          </div>
         </div>
         {segments.map((seg, si) => {
           const [segY, segM] = seg.key ? seg.key.split("-").map(Number) : [null, null];
           return (
-            <div className="cal-month-segment" key={seg.key || si}>
-              {segM!==null && <span className="cal-month-watermark">{segM+1}</span>}
+            <div className="cal-month-segment" key={seg.key || si} style={{display:"flex"}}>
+              {segM!==null ? (
+                <div className="cal-month-badge">{segY}<br/>{pad(segM+1)}월</div>
+              ) : <div className="cal-month-rail-spacer" />}
+              <div style={{flex:1, minWidth:0}}>
               {seg.weekIndices.map(wi => {
                 const weekDays = weeks[wi];
                 const dateStrs = weekDays.map(c => c ? dateStrFor(c.y, c.m, c.day) : null);
@@ -1799,7 +1855,12 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                 {items.map((item, idx) => {
                                   const siteColor = siteColorMap[item.site.id];
                                   const titleText = `${item.site.name}${item.start && item.end ? ` 전체공사 (${item.start} ~ ${item.end})` : ""}`;
-                                  const laneStyle = { flex: items.length ? `1 1 ${100/items.length}%` : "1", background: item.active ? siteColor + "48" : "transparent" };
+                                  const laneStyle = {
+                                    flex: items.length ? `1 1 ${100/items.length}%` : "1",
+                                    background: item.active ? siteColor + "48" : "transparent",
+                                    borderRight: idx < items.length-1 ? "2px solid var(--navy-deep)" : "none",
+                                    boxSizing: "border-box",
+                                  };
                                   const visibleTrades = item.trades.filter(t => t.trade.id!=="misc");
                                   const tradeSlots = Array.from({length: Math.max(3, visibleTrades.length)}, (_, i) => visibleTrades[i] || null);
                                   return (
@@ -1821,14 +1882,14 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                               <div
                                                 className={"trade-day-chip" + (chipStyle==="text" ? " chip-text-mode" : "")}
                                                 style={chipStyle==="text" ? {background:"transparent"} : {background: tr.trade.color}}
-                                                title={`${item.site.name} · ${tr.trade.name}${tr.workerName ? " · "+tr.workerName : ""} (${tr.start} ~ ${tr.end}) — 드래그로 날짜 이동, 클릭하면 수정`}
+                                                title={`${item.site.name} · ${tr.trade.name}${tr.workerName ? " · "+tr.workerName : ""}${tr.memo ? " · "+tr.memo : ""} (${tr.start} ~ ${tr.end}) — 드래그로 날짜 이동, 클릭하면 수정`}
                                                 draggable
                                                 onDragStart={e=>handleChipDragStart(e, tr.id, dateStr)}
                                                 onDragEnd={()=>setDragOverDate(null)}
                                                 onClick={e=>{ e.stopPropagation(); setEditingScheduleId(tr.id); }}
                                               >
                                                 <span className="chip-main" style={{fontSize: chipFontSize+"px", ...(chipStyle==="text" ? {color: tr.trade.color, fontWeight:800} : {})}}>
-                                                  {tr.trade.name}{tr.laborUnits!=null && ` ${tr.laborUnits}품`}{tr.memo && `(${tr.memo})`}
+                                                  {tr.trade.name}{tr.laborUnits!=null && ` ${tr.laborUnits}품`}
                                                 </span>
                                               </div>
                                             )}
@@ -1870,6 +1931,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                   </div>
                 );
               })}
+              </div>
             </div>
           );
         })}
@@ -1929,7 +1991,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                   {siteById[p.siteId]?.name} (전체공사)
                 </span>
               ))}
-              {trades.map(t => (
+              {sortedTradeList(trades).map(t => (
                 <span className="legend-item" key={t.id}><span className="legend-dot" style={{background:t.color}} />{t.name}</span>
               ))}
             </div>
@@ -2146,7 +2208,7 @@ function ContactsTab({ trades, setTrades, schedules, setSchedules }){
         <button className="btn btn-accent" onClick={()=>setShowAddTrade(true)}>+ 공정 추가</button>
       </div>
 
-      {trades.map(trade => (
+      {sortedTradeList(trades).map(trade => (
         <div className="card contact-card" key={trade.id}>
           <div className="contact-head">
             <span className="trade-swatch" style={{background:trade.color}} />
@@ -2358,7 +2420,7 @@ function LaborTab({ trades, sites, schedules }){
     });
   });
 
-  const groupList = trades.map(t => grouped[t.id]).filter(Boolean);
+  const groupList = sortedTradeList(trades).map(t => grouped[t.id]).filter(Boolean);
   const grandTotal = groupList.reduce((sum, g) => sum + Object.values(g.contacts).reduce((s,c) => s+c.units, 0), 0);
 
   return (
