@@ -1468,15 +1468,16 @@ function resolveContact(sc, trade){
 function drawCustomerCalendar({ site, schedules, tradeById, bg }){
   const siteSchedules = schedules.filter(sc => sc.siteId===site.id && sc.tradeId!=="misc" && tradeById[sc.tradeId]);
   // 표시할 기간: 현장 전체 공사기간 → 없으면 일정의 처음~끝 → 없으면 이번 달
+  // 머리말의 공사기간은 등록된 전체 공사기간을 쓰고, 달력은 실제 공정이 있는 달만 그립니다
   let start = site.projectStart, end = site.projectEnd;
-  if(!start || !end){
-    const ranges = siteSchedules.map(scheduleRange);
-    if(ranges.length){ start = ranges.reduce((a,r)=>r.start<a?r.start:a, ranges[0].start); end = ranges.reduce((a,r)=>r.end>a?r.end:a, ranges[0].end); }
-    else { start = end = todayStr(); }
-  }
+  const ranges = siteSchedules.map(scheduleRange);
+  const schStart = ranges.length ? ranges.reduce((a,r)=>r.start<a?r.start:a, ranges[0].start) : null;
+  const schEnd = ranges.length ? ranges.reduce((a,r)=>r.end>a?r.end:a, ranges[0].end) : null;
+  if(!start || !end){ start = schStart || todayStr(); end = schEnd || start; }
+  const calStart = schStart || start, calEnd = schEnd || end;
   const months = [];
-  let [y, m] = start.split("-").map(Number); m -= 1;
-  const [ey, em] = end.split("-").map(Number);
+  let [y, m] = calStart.split("-").map(Number); m -= 1;
+  const [ey, em] = calEnd.split("-").map(Number);
   while((y < ey || (y===ey && m <= em-1)) && months.length < 6){ months.push({y, m}); m++; if(m>11){ m=0; y++; } }
   if(!months.length) months.push({y, m});
 
@@ -2239,6 +2240,15 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
   function renderCalendarBlock(monthCursors, sitesOverride){
     const weeks = buildContinuousWeeks(monthCursors);
     const siteList = sitesOverride || relevantSites;
+    // 인쇄처럼 현장 목록을 따로 넘기면, 현장 선택 필터와 상관없이 그 현장들의 전체 일정을 씁니다
+    const pool = sitesOverride ? schedules : filtered;
+    const rangeFor = site => {
+      if(!sitesOverride) return siteRanges[site.id];
+      if(site.projectStart && site.projectEnd) return scheduleRange({ startDate: site.projectStart, endDate: site.projectEnd });
+      const rs = pool.filter(sc => sc.siteId===site.id).map(scheduleRange);
+      if(!rs.length) return null;
+      return { start: rs.reduce((a,r)=>r.start<a?r.start:a, rs[0].start), end: rs.reduce((a,r)=>r.end>a?r.end:a, rs[0].end) };
+    };
     const monthKeyOf = cell => cell ? `${cell.y}-${cell.m}` : null;
 
     // segments are only used to place the big faint month-number watermark —
@@ -2279,9 +2289,9 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
                 // that have nothing scheduled for it at all
                 const weekSiteList = siteList.filter(site => dateStrs.some(ds => {
                   if(!ds) return false;
-                  const range = siteRanges[site.id];
+                  const range = rangeFor(site);
                   const headerActive = range && ds>=range.start && ds<=range.end;
-                  const hasTrade = filtered.some(sc => sc.siteId===site.id && (() => { const {start,end}=scheduleRange(sc); return ds>=start && ds<=end; })());
+                  const hasTrade = pool.some(sc => sc.siteId===site.id && (() => { const {start,end}=scheduleRange(sc); return ds>=start && ds<=end; })());
                   return !!headerActive || hasTrade;
                 }));
                 return (
@@ -2321,7 +2331,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
                       const weekEnd = lastValid;
                       let rowCursor = 1;
                       const siteBlocks = weekSiteList.map((site, sidx) => {
-                        const siteSchedules = filtered.filter(sc => sc.siteId===site.id && sc.tradeId!=="misc");
+                        const siteSchedules = pool.filter(sc => sc.siteId===site.id && sc.tradeId!=="misc");
                         const rawEvents = [];
                         siteSchedules.forEach(sc => {
                           const { start, end } = scheduleRange(sc);
@@ -2526,7 +2536,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
                   {m.y}년 {m.m+1}월 인쇄
                 </button>
               ))}
-              <p className="site-multiselect-empty" style={{fontSize:11, margin:"4px 0 0"}}>선택된 현장만 인쇄돼요</p>
+              <p className="site-multiselect-empty" style={{fontSize:11, margin:"4px 0 0"}}>그 달에 공사가 있는 현장이 모두 인쇄돼요</p>
             </div>
           )}
         </div>
@@ -2535,7 +2545,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
       {printMonth && (
         <div className="print-area">
           <h2 className="print-title">공정표 · {printMonth.y}년 {printMonth.m+1}월</h2>
-          {renderCalendarBlock([printMonth])}
+          {renderCalendarBlock([printMonth], [...sites].sort((a,b) => (a.order??0) - (b.order??0)))}
         </div>
       )}
 
