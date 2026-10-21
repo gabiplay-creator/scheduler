@@ -223,6 +223,8 @@
   .contact-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
   .contact-head .trade-swatch{width:12px;height:12px;}
   .contact-head h4{margin:0;font-size:15px;}
+  .trade-combo{display:flex;gap:6px;}
+  .trade-combo input{flex:1;padding:9px 11px;border:1px solid var(--paper-line);border-radius:8px;font-size:14px;background:var(--paper);}
   .trade-color-pick{width:22px;height:22px;border-radius:6px;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(0,0,0,.15);flex-shrink:0;}
   .trade-color-pick input{opacity:0;position:absolute;inset:0;width:100%;height:100%;cursor:pointer;border:none;padding:0;}
   .contact-note{font-size:12px;color:var(--ink-soft);margin:0 0 10px;font-style:italic;}
@@ -1349,6 +1351,9 @@ function DayWorkersModal({ site, date, trades, onClose, onSave }){
 }
 
 function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onClose, onAdd }){
+  // 빈칸을 눌러 여는 간단 추가창: 공정 + 메모만 받습니다.
+  // 날짜는 누른 칸의 하루로 들어가고, 담당자는 공정의 기본 담당자로 연결됩니다.
+  // 기간·작업자·품수가 필요하면 추가한 뒤 공정을 눌러 수정창에서 넣으면 됩니다.
   const orderedTrades = useMemo(()=>sortedTradeList(trades), [trades]);
   const [siteId, setSiteId] = useState(initialSiteId || sites[0]?.id || "");
   const site = sites.find(s => s.id===siteId);
@@ -1358,92 +1363,55 @@ function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onCl
   const isCustom = tradeId===CUSTOM;
   // 직접 입력한 이름이 이미 있는 공정과 같으면 그 공정으로 연결합니다
   const matchedTrade = isCustom && customName.trim() ? trades.find(t => normTradeName(t.name)===normTradeName(customName)) : null;
-  const trade = isCustom ? matchedTrade : trades.find(t => t.id===tradeId);
-  const [startDate, setStartDate] = useState(initialDate);
-  const [endDate, setEndDate] = useState(initialDate);
-  const [contactId, setContactId] = useState(defaultContactId(trade));
-  const [workerName, setWorkerName] = useState("");
-  const [laborUnits, setLaborUnits] = useState("");
   const [memo, setMemo] = useState("");
 
-  function handleTradeChange(id){
-    setTradeId(id);
-    const t = trades.find(x => x.id===id);
-    setContactId(defaultContactId(t));
-  }
-  function handleStartChange(v){
-    setStartDate(v);
-    if(endDate < v) setEndDate(v);
-  }
   function submit(){
     if(!siteId){ alert("현장을 선택해주세요."); return; }
-    if(isCustom && !customName.trim()){ alert("공정명을 입력해주세요."); return; }
-    if(!isCustom && !tradeId){ alert("공정을 선택해주세요."); return; }
-    if(!startDate || !endDate){ alert("시작일과 종료일을 입력해주세요."); return; }
-    const finalContactId = isCustom ? defaultContactId(matchedTrade) : contactId;
-    onAdd(siteId, { tradeId: isCustom ? (matchedTrade?.id || null) : tradeId, contactId: finalContactId, startDate, endDate: endDate<startDate ? startDate : endDate, workerName: workerName.trim(), laborUnits: laborUnits==="" ? null : Number(laborUnits), memo }, isCustom && !matchedTrade ? customName.trim() : null);
+    if(isCustom && !customName.trim()){ alert("공정명을 입력하거나 목록에서 골라주세요."); return; }
+    const trade = isCustom ? matchedTrade : trades.find(t => t.id===tradeId);
+    onAdd(siteId, {
+      tradeId: trade?.id || null, contactId: defaultContactId(trade),
+      startDate: initialDate, endDate: initialDate, workerName: "", laborUnits: null, memo: memo.trim(),
+    }, isCustom && !matchedTrade ? customName.trim() : null);
   }
+  const onEnter = e => { if(e.key==="Enter") submit(); };
 
   return (
     <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
-      <div className="modal">
+      <div className="modal" style={{maxWidth:460}}>
         <div className="modal-head">
           <div>
-            <p className="eyebrow">ADD SCHEDULE</p>
+            <p className="eyebrow">ADD SCHEDULE · {initialDate}</p>
             <h3>{initialSiteId ? site?.name : "일정 추가"}</h3>
           </div>
           <button className="close-x" onClick={onClose}>✕</button>
         </div>
 
-        <div className="row2">
-          {!initialSiteId && (
-            <div className="field" style={{gridColumn:"1 / -1"}}>
-              <label>현장</label>
-              <select value={siteId} onChange={e=>setSiteId(e.target.value)}>
-                {sites.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-          )}
+        {!initialSiteId && (
           <div className="field">
-            <label>공정</label>
-            <select value={tradeId} onChange={e=>handleTradeChange(e.target.value)}>
+            <label>현장</label>
+            <select value={siteId} onChange={e=>setSiteId(e.target.value)}>
+              {sites.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+        )}
+        <div className="field">
+          <label>공정{isCustom && customName.trim() && (matchedTrade ? " · 기존 공정과 연결" : " · 새 공정으로 추가")}</label>
+          {isCustom ? (
+            <div className="trade-combo">
+              <input type="text" autoFocus value={customName} onChange={e=>setCustomName(e.target.value)} onKeyDown={onEnter} placeholder="공정명 입력 (예: 방수, 양중, 발주)" />
+              <button type="button" className="btn btn-ghost btn-sm" onClick={()=>setTradeId(orderedTrades[0]?.id || CUSTOM)} title="목록에서 고르기">목록 ▾</button>
+            </div>
+          ) : (
+            <select value={tradeId} autoFocus onChange={e=>setTradeId(e.target.value)}>
               <option value={CUSTOM}>✏️ 직접 입력</option>
               {orderedTrades.map(t => <option value={t.id} key={t.id}>{t.name}</option>)}
             </select>
-          </div>
-          {isCustom ? (
-            <div className="field">
-              <label>공정명 직접 입력{customName.trim() && (matchedTrade ? " · 기존 공정과 연결" : " · 새 공정으로 추가")}</label>
-              <input type="text" autoFocus value={customName} onChange={e=>setCustomName(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter") submit(); }} placeholder="예: 방수, 양중, 발주" />
-            </div>
-          ) : (
-            <div className="field">
-              <label>담당자 (연락용 거래처)</label>
-              <select value={contactId} onChange={e=>setContactId(e.target.value)}>
-                {trade?.contacts.map(c => <option value={c.id} key={c.id}>{c.name || "(이름 미입력)"}{c.isDefault ? " (기본)" : ""}</option>)}
-              </select>
-            </div>
           )}
-          <div className="field">
-            <label>작업자명 (직접 입력)</label>
-            <input type="text" value={workerName} onChange={e=>setWorkerName(e.target.value)} placeholder="예: 김철수" />
-          </div>
-          <div className="field">
-            <label>시작일</label>
-            <input type="date" value={startDate} onChange={e=>handleStartChange(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>종료일 (총 기간)</label>
-            <input type="date" value={endDate} min={startDate} onChange={e=>setEndDate(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>품수 (0.5 단위)</label>
-            <input type="number" step="0.5" min="0" value={laborUnits} onChange={e=>setLaborUnits(e.target.value)} placeholder="예: 1.5" />
-          </div>
-          <div className="field" style={{gridColumn:"1 / -1"}}>
-            <label>메모</label>
-            <input type="text" value={memo} onChange={e=>setMemo(e.target.value)} placeholder="예: 자재 주문, 실측 방문 등" />
-          </div>
+        </div>
+        <div className="field">
+          <label>메모 (공정 옆 괄호에 표시)</label>
+          <input type="text" value={memo} onChange={e=>setMemo(e.target.value)} onKeyDown={onEnter} placeholder="예: 1, 오전, 화장실" />
         </div>
 
         <div className="modal-footer">
