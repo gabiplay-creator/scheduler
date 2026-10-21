@@ -2142,7 +2142,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
   // builds one uninterrupted sequence of weeks spanning several consecutive months —
   // no blank filler between the end of one month and the start of the next, only at
   // the very start (before the 1st Sunday) and very end (after the last Saturday)
-  function buildContinuousWeeks(monthCursors){
+  function buildContinuousWeeks(monthCursors, dropTrailingPartial){
     const first = monthCursors[0], last = monthCursors[monthCursors.length-1];
     const firstDate = new Date(first.y, first.m, 1);
     const lastDate = new Date(last.y, last.m+1, 0);
@@ -2157,6 +2157,8 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
     }
     const weeks = [];
     for(let i=0;i<cells.length;i+=7) weeks.push(cells.slice(i,i+7));
+    // 다음 달에 걸친 마지막 주는 다음 달 쪽에 붙이고 여기선 뺍니다 (연달아 인쇄할 때 겹치지 않게)
+    if(dropTrailingPartial && weeks.length>1 && weeks[weeks.length-1].some(c => c && c.outside)) weeks.pop();
     return weeks;
   }
 
@@ -2289,8 +2291,8 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
   const todayFull = todayStr();
 
   // renders one month's dow-row + week grid (used twice, stacked vertically)
-  function renderCalendarBlock(monthCursors, sitesOverride){
-    const weeks = buildContinuousWeeks(monthCursors);
+  function renderCalendarBlock(monthCursors, sitesOverride, opts = {}){
+    const weeks = buildContinuousWeeks(monthCursors, opts.dropTrailingPartial);
     const siteList = sitesOverride || relevantSites;
     // 인쇄처럼 현장 목록을 따로 넘기면, 현장 선택 필터와 상관없이 그 현장들의 전체 일정을 씁니다
     const pool = sitesOverride ? schedules : filtered;
@@ -2335,6 +2337,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
     });
 
     if(!segments.length){
+      if(opts.printMode) return null;
       return <div className="empty">이 기간에는 선택된 현장의 공정이 없어요.<br/>‹ › 버튼으로 다른 달을 보거나, 현장 선택을 바꿔보세요.</div>;
     }
     return (
@@ -2613,15 +2616,22 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
 
       {printMonths && (
         <div className="print-area">
-          {printMonths.map(pm => (
-            <div className="print-page" key={pm.y+"-"+pm.m}>
-              <h2 className="print-title">
-                공정표 · {pm.y}년 {pm.m+1}월
-                {relevantSites.length<=3 && <span className="print-sub"> · {relevantSites.map(s => s.name).join(", ")}</span>}
-              </h2>
-              {renderCalendarBlock([pm])}
-            </div>
-          ))}
+          {printMonths.map(pm => {
+            // 다음 달도 함께 인쇄하면, 두 달에 걸친 주는 다음 달 장에만 나옵니다
+            const next = addMonths(pm, 1);
+            const nextPrinted = printMonths.some(x => x.y===next.y && x.m===next.m);
+            const block = renderCalendarBlock([pm], undefined, { printMode: true, dropTrailingPartial: nextPrinted });
+            if(!block) return null;
+            return (
+              <div className="print-page" key={pm.y+"-"+pm.m}>
+                <h2 className="print-title">
+                  공정표 · {pm.y}년 {pm.m+1}월
+                  {relevantSites.length<=3 && <span className="print-sub"> · {relevantSites.map(s => s.name).join(", ")}</span>}
+                </h2>
+                {block}
+              </div>
+            );
+          })}
         </div>
       )}
 
