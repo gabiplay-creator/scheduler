@@ -223,6 +223,8 @@
   .contact-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
   .contact-head .trade-swatch{width:12px;height:12px;}
   .contact-head h4{margin:0;font-size:15px;}
+  .trade-color-pick{width:22px;height:22px;border-radius:6px;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(0,0,0,.15);flex-shrink:0;}
+  .trade-color-pick input{opacity:0;position:absolute;inset:0;width:100%;height:100%;cursor:pointer;border:none;padding:0;}
   .contact-note{font-size:12px;color:var(--ink-soft);margin:0 0 10px;font-style:italic;}
   .contact-item{
     display:grid;grid-template-columns:1.1fr 1fr 0.7fr 1.1fr 0.8fr auto;gap:8px;align-items:center;
@@ -680,6 +682,15 @@ function pastelizeColor(hex, amount=0.6){
   const mix = v => Math.round(v + (255-v)*amount);
   const toHex = v => v.toString(16).padStart(2,"0");
   return `#${toHex(mix(r))}${toHex(mix(g))}${toHex(mix(b))}`;
+}
+// 공정 글자색: 공정별 담당자 탭의 공정 색을 쓰되, 파스텔 배경 위에서 잘 읽히도록 살짝 진하게
+// (밝은 색은 파스텔 배경 위에서도 읽히는 밝기까지 자동으로 더 진하게 합니다)
+function tradeTextColor(hex){
+  if(!hex || hex[0]!=="#" || hex.length!==7) return "#1a1a1a";
+  const lum = h => { const c = [1,3,5].map(i => parseInt(h.slice(i,i+2),16)/255).map(v => v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4)); return 0.2126*c[0]+0.7152*c[1]+0.0722*c[2]; };
+  let c = deepenColor(hex, 0.12);
+  for(let i=0; i<12 && lum(c) > 0.11; i++) c = deepenColor(c, 0.08);
+  return c;
 }
 function shiftDateStr(dateStr, deltaDays){
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -1483,7 +1494,8 @@ function drawCustomerCalendar({ site, schedules, tradeById, bg }){
 
   const tradesOn = date => {
     const names = [];
-    siteSchedules.forEach(sc => { const r = scheduleRange(sc); if(date>=r.start && date<=r.end){ const n = tradeById[sc.tradeId].name; if(!names.includes(n)) names.push(n); } });
+    names.colors = {};
+    siteSchedules.forEach(sc => { const r = scheduleRange(sc); if(date>=r.start && date<=r.end){ const n = tradeById[sc.tradeId].name; if(!names.includes(n)){ names.push(n); names.colors[n] = tradeById[sc.tradeId].color; } } });
     return names;
   };
 
@@ -1547,14 +1559,15 @@ function drawCustomerCalendar({ site, schedules, tradeById, bg }){
         ctx.font = `800 18px ${FONT}`;
         ctx.fillText(String(cell.d), x + 10, yy + 26);
         if(hol){ ctx.font = `600 13px ${FONT}`; ctx.fillText(hol, x + 40, yy + 25); }
-        tradesOn(cell.date).forEach((name, k) => {
+        const dayTrades = tradesOn(cell.date);
+        dayTrades.forEach((name, k) => {
           const py = yy + 38 + k*(PILLH+6), px = x + 7, pw = COLW - 14;
           ctx.fillStyle = pillBg;
           ctx.beginPath();
           if(ctx.roundRect) ctx.roundRect(px, py, pw, PILLH, 6); else ctx.rect(px, py, pw, PILLH);
           ctx.fill();
           ctx.fillStyle = pillDeep; ctx.fillRect(px, py, 4, PILLH);
-          ctx.fillStyle = "#1a1a1a"; ctx.font = `800 17px ${FONT}`;
+          ctx.fillStyle = tradeTextColor(dayTrades.colors[name]); ctx.font = `800 17px ${FONT}`;
           let label = name;
           while(ctx.measureText(label).width > pw - 20 && label.length > 1) label = label.slice(0, -1);
           if(label!==name) label = label.slice(0, -1) + "…";
@@ -2011,9 +2024,26 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
     if(didInitSiteFilter.current) return;
     if(sites.length===0) return;
     didInitSiteFilter.current = true;
+    const allIds = sites.map(s => s.id);
     const activeIds = sites.filter(s => !isSiteEnded(s)).map(s => s.id);
-    setSelectedSiteIds(activeIds.length ? activeIds : sites.map(s=>s.id));
+    // 이 브라우저에서 마지막으로 골라둔 현장 선택을 복원합니다.
+    // 저장 이후 새로 추가된 현장은 (종료된 게 아니면) 자동으로 포함합니다.
+    const saved = loadLS("scheduler:siteFilter", null);
+    if(saved && Array.isArray(saved.selected)){
+      const known = new Set(saved.known || []);
+      const restored = [
+        ...saved.selected.filter(id => allIds.includes(id)),
+        ...activeIds.filter(id => !known.has(id) && !saved.selected.includes(id)),
+      ];
+      if(restored.length){ setSelectedSiteIds(restored); return; }
+    }
+    setSelectedSiteIds(activeIds.length ? activeIds : allIds);
   }, [sites]);
+  useEffect(() => {
+    if(!didInitSiteFilter.current) return;
+    // null = "전체 선택"
+    saveLS("scheduler:siteFilter", { selected: selectedSiteIds===null ? sites.map(s => s.id) : selectedSiteIds, known: sites.map(s => s.id) });
+  }, [selectedSiteIds]);
   const [chipStyle, setChipStyle] = useState(() => loadLS("scheduler:chipStyle", "fill")); // "fill" | "text"
   const [chipFontSize, setChipFontSize] = useState(() => {
     const saved = loadLS("scheduler:chipFontSize", 22);
@@ -2469,7 +2499,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
                                     onDrop={e=>{ e.stopPropagation(); handleCellDrop(e, c.dateStr, si); }}
                                     onClick={e=>{ e.stopPropagation(); setEditingScheduleId(sc.id); }}
                                   >
-                                    <span className="chip-main" style={{fontSize: chipFontSize+"px"}}>
+                                    <span className="chip-main" style={{fontSize: chipFontSize+"px", color: tradeTextColor(tr.trade.color)}}>
                                       {tr.trade.name}{sc.memo && ` (${sc.memo})`}
                                     </span>
                                   </div>
@@ -2751,8 +2781,10 @@ function ContactsTab({ trades, setTrades, schedules, setSchedules }){
       {sortedTradeList(trades).map(trade => (
         <div className="card contact-card" key={trade.id}>
           <div className="contact-head">
-            <span className="trade-swatch" style={{background:trade.color}} />
-            <h4 style={{flex:1}}>{trade.name}</h4>
+            <label className="trade-color-pick" title="공정 글자색 바꾸기" style={{background:trade.color}}>
+              <input type="color" value={trade.color} onChange={e=>{ const c = e.target.value; setTrades(prev => prev.map(t => t.id===trade.id ? {...t, color:c} : t)); }} />
+            </label>
+            <h4 style={{flex:1, color: tradeTextColor(trade.color)}}>{trade.name}</h4>
             <button className="btn btn-danger btn-sm" onClick={()=>deleteTrade(trade.id, trade.name)}>공정 삭제</button>
           </div>
           <p className="contact-note">{trade.note}</p>
