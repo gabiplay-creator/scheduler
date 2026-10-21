@@ -1993,7 +1993,6 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
                                       ))}
                                     </span>
                                   ) : <span>{site.name}</span>}
-                                  {site.manager && <span className="site-label-manager">({site.manager})</span>}
                                 </div>
                               </div>
                               {slotsRender.map((cells, si) => cells.map((c, ci) => {
