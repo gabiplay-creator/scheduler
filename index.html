@@ -1309,8 +1309,18 @@ function effectiveUnits(sc){
 }
 const won = n => n==null ? "-" : Math.round(n).toLocaleString("ko-KR") + "원";
 
+// 일정에 담당자를 따로 고르지 않았거나 빈 담당자가 선택돼 있으면,
+// "공정별 담당자" 탭에서 기본으로 지정한 담당자를 대신 보여줍니다.
+function resolveContact(sc, trade){
+  if(!trade) return null;
+  const isBlank = c => !c.name && !c.phone && !c.bank && !c.account;
+  const picked = trade.contacts.find(c => c.id===sc.contactId);
+  if(picked && !isBlank(picked)) return picked;
+  return trade.contacts.find(c => c.isDefault && !isBlank(c)) || trade.contacts.find(c => !isBlank(c)) || null;
+}
+
 function ScheduleInfoModal({ schedule, trade, site, allSchedules, onClose, onEdit }){
-  const contact = trade?.contacts.find(c => c.id===schedule.contactId);
+  const contact = resolveContact(schedule, trade);
   const { start, end } = scheduleRange(schedule);
   const days = daySpan(schedule);
   const units = effectiveUnits(schedule);
@@ -1323,7 +1333,7 @@ function ScheduleInfoModal({ schedule, trade, site, allSchedules, onClose, onEdi
   const tradeDays = sameTrade.reduce((sum,s) => sum + daySpan(s), 0);
   const tradeUnits = sameTrade.reduce((sum,s) => sum + effectiveUnits(s), 0);
   const tradeMoneyParts = sameTrade.map(s => {
-    const w = effectiveDailyWage(s, trade?.contacts.find(c => c.id===s.contactId));
+    const w = effectiveDailyWage(s, resolveContact(s, trade));
     return w!=null ? effectiveUnits(s) * w : null;
   });
   const tradeMoney = tradeMoneyParts.every(v => v!=null) ? tradeMoneyParts.reduce((a,b)=>a+b, 0) : null;
@@ -1366,8 +1376,6 @@ function ScheduleInfoModal({ schedule, trade, site, allSchedules, onClose, onEdi
         </div>
 
         <div className="info-box">
-          {row("기간", `${start}${end!==start ? " ~ "+end : ""}`)}
-          {row("나오는 날", `${days}일`, true)}
           {row("품수", unitsEntered ? `${units}품` : `${units}품 (미입력 · 일수 기준)`, true)}
           {row("일당", wage!=null ? won(wage) : "미입력")}
           {row("합계 (품수 × 일당)", total!=null ? won(total) : "일당을 입력하면 계산돼요", true)}
@@ -1411,7 +1419,7 @@ function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete })
     if(!startDate || !endDate){ alert("시작일과 종료일을 입력해주세요."); return; }
     onSave({ startDate, endDate: endDate<startDate ? startDate : endDate, contactId, workerName: workerName.trim(), laborUnits: laborUnits==="" ? null : Number(laborUnits), dailyWage: dailyWage==="" ? null : Number(dailyWage), memo });
   }
-  const contactWage = trade?.contacts.find(c => c.id===contactId)?.dailyWage;
+  const contactWage = resolveContact({ contactId }, trade)?.dailyWage;
 
   return (
     <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
@@ -2165,7 +2173,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
 }
 
 function ScheduleRow({ sc, trade, site, onDelete, onEdit }){
-  const contact = trade?.contacts.find(c=>c.id===sc.contactId);
+  const contact = resolveContact(sc, trade);
   const { start, end } = scheduleRange(sc);
   const span = daySpan(sc);
   return (
