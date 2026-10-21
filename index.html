@@ -332,6 +332,7 @@
     background:var(--navy);border:1px solid var(--excel-line-soft);border-radius:0;min-height:34px;padding:0;
     display:flex;align-items:center;cursor:pointer;overflow:hidden;
   }
+  .cal-cell.outside-month{background:#3E5878;}
   .cal-cell.empty-cell{background:#fff;border:1px solid var(--excel-line-soft);cursor:default;}
   .cal-cell.today{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);}
   .cal-cell.picked{border-color:#fff;box-shadow:inset 0 0 0 1.5px #fff;}
@@ -363,8 +364,43 @@
   .day-sched{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--paper-line);border-radius:10px;margin-bottom:8px;}
   .day-sched .swatch-bar{width:4px;border-radius:3px;align-self:stretch;}
 
+  /* 출력 버튼 줄 */
+  .export-bar{display:flex;gap:8px;justify-content:flex-end;margin:-6px 0 12px;flex-wrap:wrap;}
+  .export-bar .btn-ghost{background:var(--card);}
+  .print-menu-item{display:block;width:100%;text-align:left;background:none;border:none;padding:8px 6px;border-radius:6px;font-size:13px;font-weight:700;color:var(--ink);}
+  .print-menu-item:hover{background:var(--paper);}
+  .print-area{display:none;width:1100px;}
+  .print-area.measuring{display:block;position:absolute;left:-30000px;top:0;}
+  .print-area .cal-month-badge, .print-area .cal-month-rail-spacer{display:none;}
+  .print-area .cal-continuous{border:1px solid var(--excel-line);}
+  .print-title{font-size:20px;margin:0 0 10px;color:#16233F;}
+  @page{ size: A4 landscape; margin: 8mm; }
+  @media print{
+    body.printing{background:#fff !important;}
+    body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    body.printing .header, body.printing .no-print, body.printing .footer-note, body.printing .overlay{display:none !important;}
+    body.printing .print-area{display:block;}
+    body.printing .app{width:auto;padding:0;}
+    body.printing .content{padding-top:0;}
+    body.printing .print-area{break-inside:avoid;page-break-inside:avoid;}
+    body.printing{margin:0;}
+    body.printing .cal-month-badge{position:static;}
+  }
+
   /* 출근 인원 칸 (현장별 맨 아래 줄) */
   .day-note-cell{border:1px solid var(--excel-line-soft);border-top:1px dashed var(--excel-line-soft);min-height:18px;display:flex;}
+  .day-note-cell{cursor:pointer;align-items:center;}
+  .day-note-cell:hover{box-shadow:inset 0 0 0 1.5px var(--accent);}
+  .day-note-text{font-size:10.5px;line-height:1.25;padding:2px 5px;color:rgba(0,0,0,.22);word-break:keep-all;}
+  .day-note-cell.has-value .day-note-text{color:var(--ink);font-weight:700;}
+  @media print{ .day-note-cell:not(.has-value) .day-note-text{visibility:hidden;} }
+  .worker-row{display:grid;grid-template-columns:1.3fr 1fr 52px auto;gap:8px;align-items:center;margin-bottom:8px;}
+  .worker-row input{padding:9px 11px;border:1px solid var(--paper-line);border-radius:8px;font-size:14px;background:var(--paper);width:100%;}
+  .worker-wage-preview{font-size:12.5px;font-weight:700;color:var(--navy);text-align:center;}
+  .worker-total{margin-top:14px;padding:10px 12px;background:var(--paper);border-radius:8px;font-size:13.5px;display:flex;justify-content:space-between;}
+  .payroll-row{display:grid;grid-template-columns:1fr auto 130px;gap:12px;padding:7px 2px;border-top:1px solid var(--paper-line);font-size:13.5px;align-items:center;}
+  .payroll-days{color:var(--ink-soft);font-size:12.5px;}
+  .payroll-amount{font-family:var(--mono);font-weight:800;color:var(--navy);text-align:right;}
   .day-note-cell input{
     width:100%;border:none;background:transparent;font-size:10px;line-height:1.2;padding:2px 5px;color:var(--ink);font-family:var(--sans);
   }
@@ -808,7 +844,7 @@ function App(){
           <VendorsTab vendors={vendors} setVendors={setVendors} />
         )}
         {tab==="labor" && (
-          <LaborTab trades={trades} sites={sites} schedules={schedules} />
+          <LaborTab trades={trades} sites={sites} schedules={schedules} dayNotes={dayNotes} />
         )}
       </div>
 
@@ -1378,6 +1414,239 @@ function resolveContact(sc, trade){
 
 // 캘린더 각 현장 맨 아래의 "그날 출근 인원" 칸. 입력을 마치고 칸을 벗어나거나
 // Enter를 누르면 저장됩니다 (글자마다 저장하지 않아 여러 명이 동시에 써도 덜 엉킵니다).
+/* ---------- 손님용 JPG: 현장 하나의 공사기간을 달력 모양으로 그려서 저장 ---------- */
+// 공정 이름만 들어가고, 메모·출근 인원·담당자·금액은 넣지 않습니다.
+function drawCustomerCalendar({ site, schedules, tradeById, bg }){
+  const siteSchedules = schedules.filter(sc => sc.siteId===site.id && sc.tradeId!=="misc" && tradeById[sc.tradeId]);
+  // 표시할 기간: 현장 전체 공사기간 → 없으면 일정의 처음~끝 → 없으면 이번 달
+  let start = site.projectStart, end = site.projectEnd;
+  if(!start || !end){
+    const ranges = siteSchedules.map(scheduleRange);
+    if(ranges.length){ start = ranges.reduce((a,r)=>r.start<a?r.start:a, ranges[0].start); end = ranges.reduce((a,r)=>r.end>a?r.end:a, ranges[0].end); }
+    else { start = end = todayStr(); }
+  }
+  const months = [];
+  let [y, m] = start.split("-").map(Number); m -= 1;
+  const [ey, em] = end.split("-").map(Number);
+  while((y < ey || (y===ey && m <= em-1)) && months.length < 6){ months.push({y, m}); m++; if(m>11){ m=0; y++; } }
+  if(!months.length) months.push({y, m});
+
+  const tradesOn = date => {
+    const names = [];
+    siteSchedules.forEach(sc => { const r = scheduleRange(sc); if(date>=r.start && date<=r.end){ const n = tradeById[sc.tradeId].name; if(!names.includes(n)) names.push(n); } });
+    return names;
+  };
+
+  const W = 1400, PAD = 48, COLW = (W - PAD*2) / 7, DOWH = 40, PILLH = 30;
+  const FONT = '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif';
+  // 높이 계산을 먼저 해서 캔버스 크기를 정합니다
+  const monthLayouts = months.map(({y, m}) => {
+    const firstDow = new Date(y, m, 1).getDay(), dim = new Date(y, m+1, 0).getDate();
+    const cells = [...Array(firstDow).fill(null), ...Array.from({length: dim}, (_, i) => i+1)];
+    while(cells.length % 7) cells.push(null);
+    const weeks = [];
+    for(let i=0;i<cells.length;i+=7){
+      const days = cells.slice(i, i+7).map(d => d ? { d, date: `${y}-${pad(m+1)}-${pad(d)}` } : null);
+      const maxItems = Math.max(0, ...days.map(x => x ? tradesOn(x.date).length : 0));
+      weeks.push({ days, h: Math.max(96, 40 + maxItems*(PILLH+6) + 8) });
+    }
+    return { y, m, weeks, h: 64 + DOWH + weeks.reduce((a,w)=>a+w.h, 0) + 36 };
+  });
+  const HEADER = 150;
+  const H = HEADER + monthLayouts.reduce((a,l)=>a+l.h, 0) + 30;
+  const scale = 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = W*scale; canvas.height = H*scale;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, W, H);
+
+  // 머리말
+  ctx.fillStyle = "#16233F"; ctx.fillRect(0, 0, W, 10);
+  ctx.fillStyle = "#16233F"; ctx.font = `800 38px ${FONT}`; ctx.textBaseline = "alphabetic";
+  ctx.fillText(`${site.name} 공사 일정표`, PAD, 72);
+  ctx.fillStyle = "#5B5F66"; ctx.font = `600 20px ${FONT}`;
+  ctx.fillText(`공사기간  ${start} ~ ${end}`, PAD, 110);
+  ctx.strokeStyle = "#E1D9C4"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(PAD, 132); ctx.lineTo(W-PAD, 132); ctx.stroke();
+
+  const pillBg = bg || "#CFE3FF";
+  const pillDeep = deepenColor(pillBg, 0.12);
+  let yCur = HEADER;
+  monthLayouts.forEach(layout => {
+    ctx.fillStyle = "#16233F"; ctx.font = `800 28px ${FONT}`;
+    ctx.fillText(`${layout.y}년 ${layout.m+1}월`, PAD, yCur + 42);
+    let yy = yCur + 64;
+    // 요일 줄
+    DOW.forEach((dw, i) => {
+      const x = PAD + i*COLW;
+      ctx.fillStyle = "#1E3A5F"; ctx.fillRect(x, yy, COLW, DOWH);
+      ctx.fillStyle = i===0 ? "#FF9A92" : i===6 ? "#9ADCFF" : "#ffffff";
+      ctx.font = `700 17px ${FONT}`; ctx.textAlign = "center";
+      ctx.fillText(dw, x + COLW/2, yy + 26);
+      ctx.textAlign = "left";
+    });
+    yy += DOWH;
+    layout.weeks.forEach(week => {
+      week.days.forEach((cell, i) => {
+        const x = PAD + i*COLW;
+        ctx.fillStyle = cell ? "#ffffff" : "#F4F4F2"; ctx.fillRect(x, yy, COLW, week.h);
+        ctx.strokeStyle = "#C9CDD2"; ctx.lineWidth = 1; ctx.strokeRect(x+0.5, yy+0.5, COLW, week.h);
+        if(!cell) return;
+        const hol = krHoliday(cell.date);
+        ctx.fillStyle = (i===0 || hol) ? "#D9483B" : i===6 ? "#2A78C2" : "#23262B";
+        ctx.font = `800 18px ${FONT}`;
+        ctx.fillText(String(cell.d), x + 10, yy + 26);
+        if(hol){ ctx.font = `600 13px ${FONT}`; ctx.fillText(hol, x + 40, yy + 25); }
+        tradesOn(cell.date).forEach((name, k) => {
+          const py = yy + 38 + k*(PILLH+6), px = x + 7, pw = COLW - 14;
+          ctx.fillStyle = pillBg;
+          ctx.beginPath();
+          if(ctx.roundRect) ctx.roundRect(px, py, pw, PILLH, 6); else ctx.rect(px, py, pw, PILLH);
+          ctx.fill();
+          ctx.fillStyle = pillDeep; ctx.fillRect(px, py, 4, PILLH);
+          ctx.fillStyle = "#1a1a1a"; ctx.font = `800 17px ${FONT}`;
+          let label = name;
+          while(ctx.measureText(label).width > pw - 20 && label.length > 1) label = label.slice(0, -1);
+          if(label!==name) label = label.slice(0, -1) + "…";
+          ctx.fillText(label, px + 12, py + 21);
+        });
+      });
+      yy += week.h;
+    });
+    yCur += layout.h;
+  });
+  return canvas;
+}
+
+function CustomerJpgModal({ sites, defaultSiteId, schedules, tradeById, siteBgMap, onClose }){
+  const sorted = [...sites].sort((a,b) => {
+    const ae = isSiteEnded(a), be = isSiteEnded(b);
+    if(ae!==be) return ae ? 1 : -1;
+    return (a.order??0) - (b.order??0);
+  });
+  const [siteId, setSiteId] = useState(defaultSiteId || sorted[0]?.id || "");
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const site = sites.find(s => s.id===siteId);
+
+  useEffect(() => {
+    if(!site){ setPreviewUrl(null); return; }
+    const canvas = drawCustomerCalendar({ site, schedules, tradeById, bg: siteBgMap[site.id] });
+    setPreviewUrl(canvas.toDataURL("image/jpeg", 0.92));
+  }, [siteId, schedules]);
+
+  function download(){
+    if(!previewUrl) return;
+    const a = document.createElement("a");
+    a.href = previewUrl;
+    a.download = `${site.name}_공사일정.jpg`;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
+      <div className="modal" style={{maxWidth:760}}>
+        <div className="modal-head">
+          <div>
+            <p className="eyebrow">CUSTOMER JPG</p>
+            <h3>손님용 공사 일정 이미지</h3>
+          </div>
+          <button className="close-x" onClick={onClose}>✕</button>
+        </div>
+        <div className="field">
+          <label>현장 선택 (공정 이름만 들어가요 · 메모·인원·담당자는 빠져요)</label>
+          <select value={siteId} onChange={e=>setSiteId(e.target.value)}>
+            {sorted.map(s => <option key={s.id} value={s.id}>{s.name}{isSiteEnded(s) ? " (종료)" : ""}</option>)}
+          </select>
+        </div>
+        {previewUrl && (
+          <div style={{maxHeight:"55vh", overflow:"auto", border:"1px solid var(--paper-line)", borderRadius:8}}>
+            <img src={previewUrl} style={{width:"100%", display:"block"}} />
+          </div>
+        )}
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>닫기</button>
+          <button className="btn btn-primary" onClick={download} disabled={!previewUrl}>JPG 저장</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 출근 인원: dayNotes 문서 하나 = 현장 하나의 하루. workers: [{name, wage}]
+// 예전에 칸에 직접 써둔 글(text)은 이름이 없으면 그대로 보여줍니다.
+function formatWageShort(w){
+  if(w==null || w==="" || isNaN(Number(w))) return "";
+  const n = Number(w);
+  if(n>=10000 && n%1000===0){ const man = n/10000; return (Number.isInteger(man) ? man : man.toFixed(1).replace(/\.0$/,"")) + "만"; }
+  return n.toLocaleString("ko-KR");
+}
+function formatWorkers(note){
+  if(!note) return "";
+  const ws = (note.workers||[]).filter(x => x.name);
+  if(ws.length) return ws.map(x => x.name + (formatWageShort(x.wage) ? `(${formatWageShort(x.wage)})` : "")).join(", ");
+  return note.text || "";
+}
+
+function DayWorkerCell({ note, onClick, style }){
+  const label = formatWorkers(note);
+  return (
+    <div className={"day-note-cell" + (label ? " has-value" : "")} style={style} onClick={onClick} title="클릭해서 그날 출근한 사람·일당 입력">
+      <span className="day-note-text">{label || "인원"}</span>
+    </div>
+  );
+}
+
+function DayWorkersEditModal({ site, date, note, nameSuggestions, lastWageByName, onClose, onSave }){
+  const initial = (note?.workers||[]).length ? note.workers.map(x => ({ name: x.name||"", wage: x.wage!=null ? String(x.wage) : "" })) : [{ name:"", wage:"" }];
+  const [rows, setRows] = useState(initial);
+  const [legacyText, setLegacyText] = useState(note?.text || "");
+  const update = (i, patch) => setRows(prev => prev.map((r, k) => k===i ? { ...r, ...patch } : r));
+  function changeName(i, name){
+    const known = lastWageByName[name.trim()];
+    setRows(prev => prev.map((r, k) => k!==i ? r : { ...r, name, wage: (r.wage==="" && known!=null) ? String(known) : r.wage }));
+  }
+  const total = rows.reduce((sum, r) => sum + (r.name.trim() && r.wage!=="" ? Number(r.wage) : 0), 0);
+  function submit(){
+    const workers = rows.filter(r => r.name.trim()).map(r => ({ name: r.name.trim(), wage: r.wage==="" ? null : Number(r.wage) }));
+    onSave(workers, legacyText.trim());
+    onClose();
+  }
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
+      <div className="modal" style={{maxWidth:520}}>
+        <div className="modal-head">
+          <div>
+            <p className="eyebrow">WORKERS · 출근 인원</p>
+            <h3>{site.name} · {date}</h3>
+          </div>
+          <button className="close-x" onClick={onClose}>✕</button>
+        </div>
+        <datalist id="worker-name-list">{nameSuggestions.map(n => <option key={n} value={n} />)}</datalist>
+        {rows.map((r, i) => (
+          <div className="worker-row" key={i}>
+            <input type="text" list="worker-name-list" value={r.name} autoFocus={i===rows.length-1 && !r.name} placeholder="이름 (예: 이동준)" onChange={e=>changeName(i, e.target.value)} />
+            <input type="number" min="0" step="10000" value={r.wage} placeholder="일당(원)" onChange={e=>update(i, { wage: e.target.value })} onKeyDown={e=>{ if(e.key==="Enter") setRows(prev => [...prev, { name:"", wage:"" }]); }} />
+            <span className="worker-wage-preview">{formatWageShort(r.wage) || "-"}</span>
+            <button className="btn btn-danger btn-sm" onClick={()=>setRows(prev => prev.length>1 ? prev.filter((_, k) => k!==i) : [{ name:"", wage:"" }])}>✕</button>
+          </div>
+        ))}
+        <button className="btn btn-ghost btn-sm" style={{marginTop:4}} onClick={()=>setRows(prev => [...prev, { name:"", wage:"" }])}>+ 사람 추가</button>
+        {legacyText && (
+          <div className="field" style={{marginTop:14}}>
+            <label>예전에 칸에 적어둔 메모</label>
+            <input type="text" value={legacyText} onChange={e=>setLegacyText(e.target.value)} />
+          </div>
+        )}
+        <div className="worker-total">이날 인건비 합계 <b>{total.toLocaleString("ko-KR")}원</b></div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>취소</button>
+          <button className="btn btn-primary" onClick={submit}>저장</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DayNoteCell({ value, onSave, style }){
   const [text, setText] = useState(value);
   const [focused, setFocused] = useState(false);
@@ -1628,7 +1897,52 @@ function SiteMultiSelect({ sites, selectedSiteIds, onChange }){
 }
 
 function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNotes, setDayNotes }){
-  const dayNoteMap = useMemo(() => Object.fromEntries(dayNotes.map(n => [n.id, n.text])), [dayNotes]);
+  const dayNoteMap = useMemo(() => Object.fromEntries(dayNotes.map(n => [n.id, n])), [dayNotes]);
+  const [workerEdit, setWorkerEdit] = useState(null); // { siteId, date }
+  // 이름 자동완성 + 그 사람의 가장 최근 일당 자동 입력
+  const { nameSuggestions, lastWageByName } = useMemo(() => {
+    const sorted = [...dayNotes].sort((a,b) => (a.date||"").localeCompare(b.date||""));
+    const last = {};
+    sorted.forEach(n => (n.workers||[]).forEach(w => { if(w.name && w.wage!=null) last[w.name] = w.wage; else if(w.name && !(w.name in last)) last[w.name] = null; }));
+    return { nameSuggestions: Object.keys(last).sort((a,b)=>a.localeCompare(b,"ko")), lastWageByName: last };
+  }, [dayNotes]);
+  function saveDayWorkers(siteId, dateStr, workers, text){
+    const id = `${siteId}_${dateStr}`;
+    setDayNotes(prev => {
+      const others = prev.filter(n => n.id!==id);
+      return (workers.length || text) ? [...others, { id, siteId, date: dateStr, workers, text: text || "" }] : others;
+    });
+  }
+  const [showJpg, setShowJpg] = useState(false);
+  const [printMenuOpen, setPrintMenuOpen] = useState(false);
+  const [printMonth, setPrintMonth] = useState(null); // {y, m} — 인쇄할 달
+  const printMenuRef = useRef(null);
+  useEffect(() => {
+    function outside(e){ if(printMenuRef.current && !printMenuRef.current.contains(e.target)) setPrintMenuOpen(false); }
+    document.addEventListener("mousedown", outside);
+    return () => document.removeEventListener("mousedown", outside);
+  }, []);
+  // 인쇄: 고른 달 하나만 따로 그린 뒤 브라우저 인쇄창을 띄우고, 끝나면 원래 화면으로
+  function startPrint(m){
+    setPrintMonth(m);
+    document.body.classList.add("printing");
+    const done = () => { document.body.classList.remove("printing"); setPrintMonth(null); window.removeEventListener("afterprint", done); };
+    window.addEventListener("afterprint", done);
+    // 한 달 전체가 A4 가로 한 장에 들어가도록, 화면 밖에서 크기를 재고 그만큼 축소합니다
+    setTimeout(() => {
+      const el = document.querySelector(".print-area");
+      if(el){
+        el.style.zoom = 1;
+        el.classList.add("measuring");
+        const w = el.scrollWidth, h = el.scrollHeight;
+        el.classList.remove("measuring");
+        // A4 가로(297×210mm)에서 여백 8mm를 뺀 인쇄 영역 ≈ 1060×730px, 약간 여유를 둠
+        const zoom = Math.min(1, 1040 / w, 715 / h);
+        el.style.zoom = zoom;
+      }
+      window.print();
+    }, 300);
+  }
   function saveDayNote(siteId, dateStr, text){
     const id = `${siteId}_${dateStr}`;
     const clean = text.trim();
@@ -1729,13 +2043,12 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
     const firstDow = firstDate.getDay();
     const totalDays = Math.round((lastDate - firstDate) / 86400000) + 1;
     const trailing = (7 - ((firstDow + totalDays) % 7)) % 7;
+    // 첫 주 앞쪽·마지막 주 뒤쪽 빈칸도 이전/다음 달 실제 날짜로 채워서 이어지게 보여줍니다 (outside 표시)
     const cells = [];
-    for(let i=0;i<firstDow;i++) cells.push(null);
-    for(let i=0;i<totalDays;i++){
+    for(let i=-firstDow;i<totalDays+trailing;i++){
       const d = new Date(firstDate); d.setDate(d.getDate()+i);
-      cells.push({ y: d.getFullYear(), m: d.getMonth(), day: d.getDate() });
+      cells.push({ y: d.getFullYear(), m: d.getMonth(), day: d.getDate(), outside: i<0 || i>=totalDays });
     }
-    for(let i=0;i<trailing;i++) cells.push(null);
     const weeks = [];
     for(let i=0;i<cells.length;i+=7) weeks.push(cells.slice(i,i+7));
     return weeks;
@@ -1759,6 +2072,59 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
     const ordered = [...sites].sort((a,b) => (a.order??0) - (b.order??0));
     return Object.fromEntries(ordered.map((s, i) => [s.id, s.bgColor || SITE_BG_PASTELS[i % SITE_BG_PASTELS.length]]));
   }, [sites]);
+
+  // 엑셀 내보내기: 화면에 보이는 두 달을 달마다 시트 하나씩 (가로=날짜, 세로=현장별 공정/인원)
+  // + 해당 기간 일정 목록 시트(담당자·연락처·품수·일당 포함)
+  function exportExcel(){
+    if(typeof XLSX==="undefined"){ alert("엑셀 기능을 불러오지 못했어요. 인터넷 연결을 확인 후 새로고침 해주세요."); return; }
+    const months = [cursor, addMonths(cursor, 1)];
+    const wb = XLSX.utils.book_new();
+    const siteList = relevantSites;
+    months.forEach(({y, m}) => {
+      const dim = new Date(y, m+1, 0).getDate();
+      const days = Array.from({length: dim}, (_, i) => i+1);
+      const ds = d => `${y}-${pad(m+1)}-${pad(d)}`;
+      const header = ["현장", "구분", ...days.map(d => { const dow = DOW[new Date(y, m, d).getDay()]; const h = krHoliday(ds(d)); return `${m+1}/${d}(${dow})${h ? " "+h : ""}`; })];
+      const rows = [header];
+      siteList.forEach(site => {
+        const tradeRow = [site.name, "공정"];
+        const noteRow = ["", "인원"];
+        days.forEach(d => {
+          const date = ds(d);
+          const names = filtered
+            .filter(sc => sc.siteId===site.id && (() => { const r = scheduleRange(sc); return date>=r.start && date<=r.end; })())
+            .map(sc => { const t = tradeById[sc.tradeId]; return t ? t.name + (sc.memo ? ` (${sc.memo})` : "") : null; })
+            .filter(Boolean);
+          tradeRow.push(names.join(", "));
+          noteRow.push(formatWorkers(dayNoteMap[`${site.id}_${date}`]));
+        });
+        rows.push(tradeRow, noteRow);
+      });
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws["!cols"] = [{wch:18}, {wch:6}, ...days.map(() => ({wch:12}))];
+      ws["!freeze"] = { xSplit: 2, ySplit: 1 };
+      XLSX.utils.book_append_sheet(wb, ws, `${y}-${pad(m+1)}`);
+    });
+    // 일정 목록 시트
+    const rangeStart = `${months[0].y}-${pad(months[0].m+1)}-01`;
+    const last = months[1];
+    const rangeEnd = `${last.y}-${pad(last.m+1)}-${pad(new Date(last.y, last.m+1, 0).getDate())}`;
+    const siteOrder = Object.fromEntries(siteList.map((s,i) => [s.id, i]));
+    const list = filtered
+      .filter(sc => { const r = scheduleRange(sc); return r.start<=rangeEnd && r.end>=rangeStart && siteOrder[sc.siteId]!==undefined; })
+      .sort((a,b) => (siteOrder[a.siteId]-siteOrder[b.siteId]) || scheduleRange(a).start.localeCompare(scheduleRange(b).start));
+    const listRows = [["현장","공정","시작일","종료일","일수","담당자","연락처","작업자","품수","일당","메모"]];
+    list.forEach(sc => {
+      const trade = tradeById[sc.tradeId]; const site = siteById[sc.siteId];
+      const r = scheduleRange(sc); const contact = resolveContact(sc, trade);
+      listRows.push([site?.name||"", trade?.name||"", r.start, r.end, daySpan(sc), contact?.name||"", contact?.phone||"", sc.workerName||"",
+        sc.laborUnits!=null ? Number(sc.laborUnits) : "", effectiveDailyWage(sc, contact) ?? "", sc.memo||""]);
+    });
+    const ws2 = XLSX.utils.aoa_to_sheet(listRows);
+    ws2["!cols"] = [{wch:18},{wch:10},{wch:12},{wch:12},{wch:6},{wch:12},{wch:14},{wch:12},{wch:6},{wch:10},{wch:20}];
+    XLSX.utils.book_append_sheet(wb, ws2, "일정목록");
+    XLSX.writeFile(wb, `공정표_${months[0].y}.${pad(months[0].m+1)}-${last.y}.${pad(last.m+1)}.xlsx`);
+  }
 
   const siteColorMap = useMemo(() => Object.fromEntries(
     sites.map((s, i) => [s.id, s.color || PROJECT_COLOR_POOL[i % PROJECT_COLOR_POOL.length]])
@@ -1880,7 +2246,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
                         return (
                           <div
                             key={di}
-                            className={"cal-cell" + (!cell ? " empty-cell" : "") + (tintOn ? " month-tint-cell" : "") + (holidayName ? " holiday-cell" : "") + (dateStr===todayFull ? " today" : "") + (selectedDate===dateStr && cell ? " picked" : "") + (dragOverDate===dateStr && cell ? " drag-over" : "") + (topBoundary ? " month-boundary-top" : "") + (leftBoundary ? " month-boundary-left" : "")}
+                            className={"cal-cell" + (!cell ? " empty-cell" : "") + (tintOn ? " month-tint-cell" : "") + (cell && cell.outside ? " outside-month" : "") + (holidayName ? " holiday-cell" : "") + (dateStr===todayFull ? " today" : "") + (selectedDate===dateStr && cell ? " picked" : "") + (dragOverDate===dateStr && cell ? " drag-over" : "") + (topBoundary ? " month-boundary-top" : "") + (leftBoundary ? " month-boundary-left" : "")}
                             onClick={()=> cell && setSelectedDate(dateStr)}
                             onDragOver={e=>{ if(cell) e.preventDefault(); }}
                             onDragEnter={e=>{ if(cell){ e.preventDefault(); setDragOverDate(dateStr); } }}
@@ -1889,7 +2255,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
                           >
                             {cell && (
                               <span className={"cal-date" + (di===0 || holidayName ? " cal-date-sun" : "") + (di===6 && !holidayName ? " cal-date-sat" : "")}>
-                                {cell.day}<span className="cal-dow-inline">{holidayName || DOW[di]}</span>
+                                {cell.outside ? `${cell.m+1}/${cell.day}` : cell.day}<span className="cal-dow-inline">{holidayName || DOW[di]}</span>
                               </span>
                             )}
                           </div>
@@ -2033,16 +2399,16 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
                                     onClick={e=>{ e.stopPropagation(); setEditingScheduleId(sc.id); }}
                                   >
                                     <span className="chip-main" style={{fontSize: chipFontSize+"px"}}>
-                                      {tr.trade.name}{sc.memo && ` ${sc.memo}`}
+                                      {tr.trade.name}{sc.memo && ` (${sc.memo})`}
                                     </span>
                                   </div>
                                 );
                               }))}
                               {dateStrs.map((ds, d) => ds ? (
-                                <DayNoteCell
+                                <DayWorkerCell
                                   key={"note"+d}
-                                  value={dayNoteMap[`${site.id}_${ds}`] || ""}
-                                  onSave={text => saveDayNote(site.id, ds, text)}
+                                  note={dayNoteMap[`${site.id}_${ds}`]}
+                                  onClick={e=>{ e.stopPropagation(); setWorkerEdit({ siteId: site.id, date: ds }); }}
                                   style={{ gridColumn: d+2, gridRow: rowEnd-1, background: siteBgMap[site.id] }}
                                 />
                               ) : (
@@ -2066,7 +2432,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
 
   return (
     <div>
-      <div className="section-head">
+      <div className="section-head no-print">
         <div>
           <p className="eyebrow">SCHEDULE OVERVIEW</p>
           <h2>공사 캘린더</h2>
@@ -2087,8 +2453,33 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
         </div>
       </div>
 
+      <div className="export-bar no-print">
+        <button className="btn btn-ghost btn-sm" onClick={()=>setShowJpg(true)} disabled={sites.length===0}>🖼 손님용 JPG</button>
+        <button className="btn btn-ghost btn-sm" onClick={exportExcel}>📊 엑셀로 내보내기</button>
+        <div className="site-multiselect" ref={printMenuRef}>
+          <button className="btn btn-ghost btn-sm" onClick={()=>setPrintMenuOpen(o=>!o)}>🖨 인쇄하기 (월별) ▾</button>
+          {printMenuOpen && (
+            <div className="site-multiselect-panel" style={{minWidth:170}}>
+              {[cursor, addMonths(cursor,1)].map(m => (
+                <button key={m.y+"-"+m.m} className="print-menu-item" onClick={()=>{ setPrintMenuOpen(false); startPrint(m); }}>
+                  {m.y}년 {m.m+1}월 인쇄
+                </button>
+              ))}
+              <p className="site-multiselect-empty" style={{fontSize:11, margin:"4px 0 0"}}>선택된 현장만 인쇄돼요</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {printMonth && (
+        <div className="print-area">
+          <h2 className="print-title">공정표 · {printMonth.y}년 {printMonth.m+1}월</h2>
+          {renderCalendarBlock([printMonth])}
+        </div>
+      )}
+
       {true && (
-        <>
+        <div className="no-print">
           {renderCalendarBlock([cursor, addMonths(cursor, 1)])}
 
           <div className="card cal-legend-card">
@@ -2119,7 +2510,30 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
               )}
             </div>
           )}
-        </>
+        </div>
+      )}
+
+      {workerEdit && siteById[workerEdit.siteId] && (
+        <DayWorkersEditModal
+          site={siteById[workerEdit.siteId]}
+          date={workerEdit.date}
+          note={dayNoteMap[`${workerEdit.siteId}_${workerEdit.date}`]}
+          nameSuggestions={nameSuggestions}
+          lastWageByName={lastWageByName}
+          onClose={()=>setWorkerEdit(null)}
+          onSave={(workers, text) => saveDayWorkers(workerEdit.siteId, workerEdit.date, workers, text)}
+        />
+      )}
+
+      {showJpg && (
+        <CustomerJpgModal
+          sites={sites}
+          defaultSiteId={relevantSites[0]?.id}
+          schedules={schedules}
+          tradeById={tradeById}
+          siteBgMap={siteBgMap}
+          onClose={()=>setShowJpg(false)}
+        />
       )}
 
 
@@ -2440,7 +2854,67 @@ function VendorFormModal({ onClose, onSave }){
 }
 
 /* ---------- Labor tab (담당자관리 — 품수 집계) ---------- */
-function LaborTab({ trades, sites, schedules }){
+function SitePayroll({ sites, dayNotes, monthStart, monthEnd }){
+  const [scope, setScope] = useState("all"); // "all" = 전체 기간, "month" = 이번 달
+  const notes = dayNotes.filter(n => scope==="all" || (n.date>=monthStart && n.date<=monthEnd));
+  const bySite = {};
+  notes.forEach(n => (n.workers||[]).forEach(w => {
+    if(!w.name) return;
+    const site = (bySite[n.siteId] = bySite[n.siteId] || { people:{}, total:0, missing:0 });
+    const p = (site.people[w.name] = site.people[w.name] || { days:0, amount:0, missing:0 });
+    p.days += 1;
+    if(w.wage!=null){ p.amount += Number(w.wage); site.total += Number(w.wage); } else { p.missing += 1; site.missing += 1; }
+  }));
+  const orderedSites = [...sites].sort((a,b) => (a.order??0)-(b.order??0)).filter(s => bySite[s.id]);
+  const grand = orderedSites.reduce((sum, s) => sum + bySite[s.id].total, 0);
+  return (
+    <div style={{marginBottom:28}}>
+      <div className="section-head" style={{marginBottom:10}}>
+        <div>
+          <p className="eyebrow">PAYROLL / 현장별 인건비</p>
+          <h2>현장별 출근 인원 지급액</h2>
+        </div>
+        <div className="view-toggle">
+          <button className={scope==="all"?"active":""} onClick={()=>setScope("all")}>전체 기간</button>
+          <button className={scope==="month"?"active":""} onClick={()=>setScope("month")}>이번 달만</button>
+        </div>
+      </div>
+      <p style={{fontSize:13, color:"var(--ink-soft)", margin:"0 0 12px"}}>캘린더 각 현장 맨 아래 <b>인원</b> 칸에 입력한 이름·일당을 현장별·사람별로 자동 합산합니다.</p>
+      {orderedSites.length===0 ? (
+        <div className="empty">입력된 출근 인원이 없습니다.<br/>캘린더에서 현장 맨 아래 "인원" 칸을 눌러 이름과 일당을 넣어보세요.</div>
+      ) : (
+        <>
+          {orderedSites.map(site => {
+            const data = bySite[site.id];
+            return (
+              <div className="card" style={{marginBottom:12}} key={site.id}>
+                <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8}}>
+                  <h4 style={{margin:0, fontSize:15}}>{site.name}</h4>
+                  <span style={{fontFamily:"var(--mono)", fontWeight:800, color:"var(--navy)"}}>{data.total.toLocaleString("ko-KR")}원</span>
+                </div>
+                {Object.entries(data.people).sort((a,b)=>b[1].amount-a[1].amount).map(([name, p]) => (
+                  <div key={name} className="payroll-row">
+                    <span>{name}</span>
+                    <span className="payroll-days">{p.days}일{p.missing ? ` (일당 미입력 ${p.missing}일)` : ""}</span>
+                    <span className="payroll-amount">{p.amount.toLocaleString("ko-KR")}원</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+          <div className="card" style={{background:"var(--navy-deep)", color:"#fff"}}>
+            <div style={{display:"flex", justifyContent:"space-between", fontWeight:800, fontSize:14}}>
+              <span>{scope==="all" ? "전체 기간" : "이번 달"} 인건비 합계</span>
+              <span style={{fontFamily:"var(--mono)"}}>{grand.toLocaleString("ko-KR")}원</span>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function LaborTab({ trades, sites, schedules, dayNotes }){
   const [cursor, setCursor] = useState(() => { const d = new Date(); return {y: d.getFullYear(), m: d.getMonth()}; });
 
   function changeMonth(delta){
@@ -2492,6 +2966,8 @@ function LaborTab({ trades, sites, schedules }){
           <button onClick={()=>changeMonth(1)}>›</button>
         </div>
       </div>
+
+      <SitePayroll sites={sites} dayNotes={dayNotes} monthStart={monthStart} monthEnd={monthEnd} />
 
       <p style={{fontSize:13, color:"var(--ink-soft)", marginBottom:16, maxWidth:640}}>
         캘린더에서 일정을 추가·수정할 때 입력한 <b>품수(0.5 단위)</b>를 공정별·담당자별로 이번 달 기준 합산합니다. 일당 계산할 때 참고하세요.
