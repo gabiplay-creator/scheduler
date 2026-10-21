@@ -27,6 +27,8 @@
     --danger:#B23A48;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --sans: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif;
+    --excel-line: #444C56;
+    --excel-line-soft: #B9BEC4;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--sans);}
@@ -243,25 +245,6 @@
   .view-toggle button.active{background:var(--navy-deep);color:#fff;}
   .view-toggle button:not(:last-child){border-right:1px solid var(--paper-line);}
 
-  .agenda-group{margin-bottom:18px;}
-  .agenda-month{
-    font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--steel);
-    text-transform:uppercase;margin:0 0 8px;padding-bottom:6px;border-bottom:1px dashed var(--paper-line);
-  }
-  .agenda-item{
-    display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--paper-line);border-radius:10px;margin-bottom:6px;background:var(--card);
-  }
-  .agenda-item.past{opacity:.55;}
-  .agenda-date{
-    font-family:var(--mono);font-size:12px;font-weight:800;color:var(--navy);background:var(--paper);
-    border-radius:6px;padding:6px 8px;text-align:center;min-width:52px;line-height:1.15;flex-shrink:0;
-  }
-  .agenda-date .dow{display:block;font-size:9.5px;color:var(--ink-soft);font-weight:600;}
-  .agenda-swatch{width:4px;align-self:stretch;border-radius:3px;flex-shrink:0;}
-  .agenda-body{flex:1;min-width:0;}
-  .agenda-title{font-weight:800;font-size:13.5px;}
-  .agenda-sub{font-size:12px;color:var(--ink-soft);margin-top:1px;}
-
   .cal-nav{display:flex;align-items:center;gap:10px;}
   .cal-nav button{background:var(--card);border:1px solid var(--paper-line);border-radius:8px;width:32px;height:32px;font-size:15px;}
   .cal-month{font-size:16px;font-weight:800;font-family:var(--mono);min-width:110px;text-align:center;}
@@ -296,40 +279,30 @@
   .color-swatch.selected{border-color:var(--ink);box-shadow:0 0 0 2px #fff, 0 0 0 4px var(--ink);}
   .color-swatch-custom{overflow:hidden;display:flex;align-items:center;justify-content:center;border:2px dashed var(--paper-line);}
   .color-swatch-custom input[type=color]{opacity:0;width:100%;height:100%;cursor:pointer;}
-  .worker-sched-table{border-collapse:collapse;width:auto;font-size:12.5px;}
-  .worker-sched-table th,.worker-sched-table td{border:1px solid var(--paper-line);padding:6px 14px;text-align:center;white-space:nowrap;min-width:64px;}
-  .worker-sched-table th:first-child,.worker-sched-table td:first-child,
-  .worker-sched-table th:nth-child(2),.worker-sched-table td:nth-child(2){min-width:auto;}
-  .worker-sched-table th{background:var(--paper);font-weight:800;color:var(--navy);font-family:var(--mono);font-size:11.5px;position:sticky;top:0;z-index:2;box-shadow:0 1px 0 var(--paper-line);}
-  .worker-sched-table th:nth-child(n+3){cursor:grab;}
-  .worker-sched-table th:nth-child(n+3):active{cursor:grabbing;}
-  .worker-sched-table th.th-drag-over{background:var(--accent-soft);color:var(--accent);}
-  .worker-sched-table td:first-child,.worker-sched-table td:nth-child(2){font-family:var(--mono);color:var(--ink-soft);}
-  .worker-sched-table tr.row-sun td:first-child,.worker-sched-table tr.row-sun td:nth-child(2){color:#C0392B;font-weight:700;}
-  .worker-sched-table tr.row-sat td:first-child,.worker-sched-table tr.row-sat td:nth-child(2){color:#1B5E86;font-weight:700;}
-  .worker-sched-table tbody tr:hover{background:rgba(0,0,0,0.02);}
-  .cal-dow-row{display:grid;grid-template-columns:100px repeat(7,1fr);gap:4px;margin-top:14px;}
-  .cal-dow-spacer{}
-  .cal-dow{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--ink-soft);text-align:center;padding-bottom:4px;letter-spacing:.05em;}
+  .cal-dow-row{display:grid;grid-template-columns:132px repeat(7,1fr);gap:0;margin-top:0;}
+  .cal-dow-spacer{border:1px solid var(--excel-line);background:#fff;}
+  .cal-dow{
+    font-family:var(--sans);font-size:13px;font-weight:800;color:var(--ink);text-align:center;
+    padding:7px 4px;letter-spacing:.02em;background:#fff;border:1px solid var(--excel-line);
+  }
   .by-site-list{display:flex;flex-direction:column;gap:22px;}
   .by-site-section{border:1px solid var(--paper-line);border-radius:12px;overflow:hidden;background:var(--card);}
   .by-site-header{
     padding:10px 16px;color:#fff;font-weight:800;font-size:14px;letter-spacing:.01em;
   }
   .by-site-section .cal-continuous{border:none;border-radius:0;box-shadow:none;padding:16px;}
-  .cal-continuous{padding:16px;}
+  .cal-continuous{padding:0;background:#fff;border:1px solid var(--excel-line);border-radius:0;overflow:visible;box-shadow:none;}
   .cal-month-segment{position:relative;}
-  .cal-cell.month-tint-cell:not(.empty-cell){background:#EEE8D9;}
-  .cal-cell.month-boundary-top{border-top:3px solid var(--navy) !important;}
-  .cal-cell.month-boundary-left{border-left:3px solid var(--navy) !important;}
-  .week-row.week-stripe-a .cal-cell{border-top:2px solid #B7CBDC;}
-  .week-row.week-stripe-b .cal-cell{border-top:2px solid #D9C9A6;}
+  .cal-cell.month-tint-cell:not(.empty-cell){background:var(--card);}
+  .cal-cell.month-boundary-top{border-top:2px solid var(--navy) !important;}
+  .cal-cell.month-boundary-left{border-left:2px solid var(--navy) !important;}
+  .week-row.week-stripe-a .cal-cell,.week-row.week-stripe-b .cal-cell{border-top:1px solid var(--excel-line);}
   .cal-month-rail-spacer{width:46px;flex-shrink:0;}
   .cal-month-badge{
     width:46px;flex-shrink:0;align-self:flex-start;position:sticky;top:10px;
-    margin-right:6px;background:var(--navy-deep);color:#fff;
-    font-family:var(--mono);font-weight:800;font-size:13px;line-height:1.3;
-    text-align:center;border-radius:9px;padding:9px 2px;box-shadow:0 3px 9px rgba(22,35,63,.28);
+    margin:0 0 0 2px;background:var(--navy-deep);color:#fff;
+    font-family:var(--sans);font-weight:800;font-size:13px;line-height:1.35;
+    text-align:center;border-radius:4px;padding:9px 2px;box-shadow:0 2px 6px rgba(22,35,63,.3);
     z-index:6;user-select:none;
   }
   .cal-legend-card{margin-top:14px;padding:14px 18px;}
@@ -338,85 +311,71 @@
   }
   .week-row{margin-bottom:0;}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:0;position:relative;z-index:1;}
-  .cal-grid.has-labels{grid-template-columns:100px repeat(7,1fr);}
-  .site-label-col{display:flex;flex-direction:column;min-height:0;background:var(--paper);border:1px solid var(--paper-line);border-right:none;}
-  .site-label-tab{
-    display:flex;align-items:center;padding:4px 6px;border-left:4px solid transparent;border-top:1px solid var(--paper-line);
-    font-size:9.5px;font-weight:700;line-height:1.15;color:var(--ink);overflow:hidden;
+  .cal-grid.has-labels{grid-template-columns:132px repeat(7,1fr);}
+  .cal-date-row{margin-bottom:0;}
+  .cal-site-row-grid{
+    display:grid;grid-template-columns:132px repeat(7,1fr);gap:0;
+    border-right:1px solid var(--excel-line-soft);border-bottom:1px solid var(--excel-line-soft);
   }
-  .site-label-tab:first-child{border-top:none;}
-  .site-label-tab span{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
+  .site-label-tab{
+    display:flex;align-items:center;justify-content:center;text-align:center;padding:4px 7px;
+    border-top:1px solid var(--excel-line-soft);border-left:1px solid var(--excel-line-soft);
+    box-sizing:border-box;
+    font-size:13px;font-weight:800;line-height:1.25;overflow:hidden;
+  }
+  .site-label-tab.site-band-even{background:#F6F7F9;}
+  .site-label-tab.site-band-odd{background:#fff;}
+  .site-label-tab.site-band-start{border-top:1px solid var(--excel-line);}
+  .site-label-tab-inner{display:flex;flex-direction:column;align-items:center;gap:2px;width:100%;}
+  .site-label-tab-inner > span:first-child{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:keep-all;}
   .site-label-tab.has-abbr{justify-content:center;}
+  .site-label-manager{
+    font-size:10px;font-weight:700;color:var(--ink-soft);white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;max-width:100%;
+  }
   .site-label-abbr{
-    font-size:22px;font-weight:800;line-height:1.1;color:var(--navy);text-align:center;
+    font-size:20px;font-weight:800;line-height:1.1;text-align:center;
     -webkit-line-clamp:2 !important;
   }
   .cal-cell{
-    background:var(--card);border:1px solid var(--paper-line);border-radius:0;min-height:168px;padding:0;
+    background:#fff;border:1px solid var(--excel-line);border-radius:0;min-height:40px;padding:0;
     display:flex;flex-direction:column;gap:0;cursor:pointer;overflow:hidden;
   }
-  .cal-cell.empty-cell{background:transparent;border:none;cursor:default;}
+  .cal-cell.empty-cell{background:#fff;border:1px solid var(--excel-line-soft);cursor:default;}
   .cal-cell.today{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);}
   .cal-cell.picked{border-color:var(--navy);box-shadow:inset 0 0 0 1.5px var(--navy);}
   .cal-cell.drag-over{border-color:var(--accent);box-shadow:inset 0 0 0 2px var(--accent);background:var(--accent-soft);}
   .cal-cell:hover:not(.empty-cell){border-color:var(--steel);}
-  .cal-date{font-family:var(--mono);font-size:19px;font-weight:800;color:var(--navy-deep);padding:5px 6px 3px;display:flex;justify-content:space-between;align-items:baseline;line-height:1;}
+  .cal-date{
+    font-family:var(--sans);font-size:15px;font-weight:800;color:var(--ink);padding:4px 6px;
+    display:flex;justify-content:space-between;align-items:baseline;line-height:1;
+    background:#fff;border-bottom:1px solid var(--excel-line-soft);
+  }
   .cal-date-sun{color:#C0392B;}
   .cal-date-sat{color:#1B5E86;}
-  .cal-dow-inline{font-size:14px;margin-left:5px;opacity:.85;}
-  .cal-cell.holiday-cell:not(.empty-cell){background:#FBE4E4;}
-  .cal-cell.holiday-cell.month-tint-cell:not(.empty-cell){background:#F5D9D2;}
+  .cal-dow-inline{font-size:12px;margin-left:5px;opacity:.85;}
+  .cal-cell.holiday-cell:not(.empty-cell){background:#fff;}
+  .cal-cell.holiday-cell:not(.empty-cell) .cal-date{background:#FDECEC;}
+  .cal-cell.holiday-cell.month-tint-cell:not(.empty-cell){background:#fff;}
   .cal-holiday-name{
     font-size:10.5px;font-weight:800;color:#C0392B;padding:0 6px 3px;display:block;line-height:1.1;
   }
-  .gantt-bar{
-    height:15px;border-radius:0;flex-shrink:0;display:flex;align-items:center;overflow:hidden;box-sizing:border-box;
+  .trade-slot-empty{
+    cursor:pointer;border-radius:0;min-height:38px;box-sizing:border-box;
+    border-top:1px solid var(--excel-line-soft);border-left:1px solid var(--excel-line-soft);
+    background:#fff;
   }
-  .gantt-bar.empty{background:transparent;}
-  .gantt-bar.lane-gap{margin-top:5px;}
-  .gantt-bar.round-l{border-radius:4px 0 0 4px;margin-left:1px;}
-  .gantt-bar.round-r{border-radius:0 4px 4px 0;margin-right:1px;}
-  .gantt-bar.round-l.round-r{border-radius:4px;margin-left:1px;margin-right:1px;}
-  .gantt-bar.project{
-    height:19px;border:2.5px solid var(--accent);box-shadow:0 2px 4px rgba(22,35,63,0.35);
-  }
-  .gantt-bar.project .gantt-label{font-weight:800;letter-spacing:.02em;}
-  .gantt-label{
-    font-size:9.5px;color:#fff;font-weight:700;padding-left:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  }
-  .site-lane-wrap{display:flex;flex-direction:column;flex:1;min-height:0;gap:3px;}
-  .site-day-block{
-    border:0;border-radius:0;padding:1px 3px;
-    display:flex;flex-direction:column;gap:0;overflow:hidden;min-height:0;
-  }
-  .site-day-block.empty-lane{background:transparent !important;}
-  .trade-slots-fill{display:flex;flex-direction:column;flex:1;min-height:0;justify-content:flex-start;}
-  .trade-slot{
-    min-height:38px;display:flex;align-items:center;overflow:visible;
-  }
-  .trade-slot-empty{cursor:pointer;border-radius:2px;}
+  .trade-slot-empty.site-band-even{background:#F6F7F9;}
+  .trade-slot-empty.site-band-start{border-top:1px solid var(--excel-line);}
   .trade-slot-empty:hover{background:rgba(226,121,47,0.18);}
   .trade-day-chip{
-    width:100%;min-height:34px;height:auto;border-radius:3px;display:flex;align-items:center;padding:4px 7px;overflow:visible;
-    box-shadow:none;margin-bottom:4px;box-sizing:border-box;cursor:grab;
+    width:100%;min-height:38px;height:auto;border-radius:0;display:flex;align-items:center;padding:4px 7px;overflow:visible;
+    box-shadow:none;box-sizing:border-box;cursor:grab;
+    border-top:1px solid var(--excel-line-soft);border-left:1px solid var(--excel-line-soft);
   }
+  .trade-day-chip.site-band-start{border-top:1px solid var(--excel-line);}
   .trade-day-chip:active{cursor:grabbing;}
   .trade-day-chip .chip-main{color:#fff;font-weight:800;white-space:normal;overflow:visible;line-height:1.2;word-break:keep-all;overflow-wrap:break-word;}
-  .site-worker-row{
-    height:16px;min-height:16px;display:flex;align-items:center;padding:1px 5px;overflow:hidden;
-    font-size:8.5px;color:var(--ink-soft);font-weight:700;background:rgba(20,20,20,0.035);
-    border-top:1px dashed var(--paper-line);box-sizing:border-box;white-space:nowrap;text-overflow:ellipsis;
-  }
-  .site-worker-row-clickable{cursor:pointer;}
-  .site-worker-row-clickable:hover{background:rgba(226,121,47,0.15);}
-  .site-worker-row-hint{opacity:.45;}
-  .site-worker-row-clickable:hover .site-worker-row-hint{opacity:.9;color:var(--accent);}
-  .site-name-fill{
-    font-size:9px;line-height:1.2;color:var(--ink);font-weight:800;letter-spacing:.01em;
-    padding:3px 5px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
-    opacity:.75;cursor:pointer;border-radius:2px;
-  }
-  .site-name-fill:hover{opacity:1;background:rgba(226,121,47,0.18);}
   .cal-empty-add{
     flex:1;display:flex;align-items:center;justify-content:center;cursor:pointer;
     font-size:10.5px;color:var(--ink-soft);opacity:.4;transition:opacity .12s;border-radius:4px;
@@ -806,10 +765,9 @@ function App(){
           <div className="tabs">
             <button className={"tab" + (tab==="calendar"?" active":"")} onClick={()=>setTab("calendar")}>공사캘린더</button>
             <button className={"tab" + (tab==="sites"?" active":"")} onClick={()=>setTab("sites")}>현장관리</button>
-            <button className={"tab" + (tab==="contacts"?" active":"")} onClick={()=>setTab("contacts")}>거래처관리</button>
-            <button className={"tab" + (tab==="vendors"?" active":"")} onClick={()=>setTab("vendors")}>기타거래처</button>
+            <button className={"tab" + (tab==="contacts"?" active":"")} onClick={()=>setTab("contacts")}>공정별 담당자</button>
+            <button className={"tab" + (tab==="vendors"?" active":"")} onClick={()=>setTab("vendors")}>거래처</button>
             <button className={"tab" + (tab==="labor"?" active":"")} onClick={()=>setTab("labor")}>담당자관리</button>
-            <button className={"tab" + (tab==="worker-sched"?" active":"")} onClick={()=>setTab("worker-sched")}>담당자 일정</button>
           </div>
         </div>
         <div className="ruler">{rulerTicks.map((_,i)=><span key={i}/>)}</div>
@@ -830,9 +788,6 @@ function App(){
         )}
         {tab==="labor" && (
           <LaborTab trades={trades} sites={sites} schedules={schedules} />
-        )}
-        {tab==="worker-sched" && (
-          <WorkerScheduleTab trades={trades} sites={sites} schedules={schedules} />
         )}
       </div>
 
@@ -965,6 +920,7 @@ function SitesTab({ sites, setSites, trades, schedules, setSchedules }){
 function SiteFormModal({ onClose, onSave, initial }){
   const [name, setName] = useState(initial?.name || "");
   const [abbreviation, setAbbreviation] = useState(initial?.abbreviation || "");
+  const [manager, setManager] = useState(initial?.manager || "");
   const [color, setColor] = useState(initial?.color || "");
   const [address, setAddress] = useState(initial?.address || "");
   const [memo, setMemo] = useState(initial?.memo || "");
@@ -996,7 +952,7 @@ function SiteFormModal({ onClose, onSave, initial }){
     if(!name.trim() || !address.trim()){ alert("현장명과 주소는 필수입니다."); return; }
     if(projectStart && projectEnd && projectEnd < projectStart){ alert("전체 공사 종료일이 시작일보다 빠를 수 없습니다."); return; }
     onSave({
-      name: name.trim(), abbreviation: abbreviation.trim(), color, address: address.trim(), memo: memo.trim(), floorPlan, estimate,
+      name: name.trim(), abbreviation: abbreviation.trim(), manager: manager.trim(), color, address: address.trim(), memo: memo.trim(), floorPlan, estimate,
       officeName: officeName.trim(), officePhone: officePhone.trim(),
       projectStart, projectEnd,
     });
@@ -1019,6 +975,11 @@ function SiteFormModal({ onClose, onSave, initial }){
             <label>약어 (달력에 크게 표시)</label>
             <input type="text" value={abbreviation} onChange={e=>setAbbreviation(e.target.value)} placeholder="예: 홍은" />
           </div>
+        </div>
+
+        <div className="field">
+          <label>현장 담당자 (달력 왼쪽 현장명 옆에 표시)</label>
+          <input type="text" value={manager} onChange={e=>setManager(e.target.value)} placeholder="예: 박지현" />
         </div>
 
         <div className="field">
@@ -1529,6 +1490,15 @@ function SiteMultiSelect({ sites, selectedSiteIds, onChange }){
     }
   }
 
+  // 목록에서는 진행중인 현장을 먼저 보여주고, 종료된 현장은 아래로 내려서
+  // 종료일이 최근인 순서(과거순)로 나열합니다.
+  const sortedSites = [...sites].sort((a,b) => {
+    const aEnded = isSiteEnded(a), bEnded = isSiteEnded(b);
+    if(aEnded!==bEnded) return aEnded ? 1 : -1;
+    if(aEnded && bEnded) return (b.projectEnd||"").localeCompare(a.projectEnd||"");
+    return (a.order??0) - (b.order??0);
+  });
+
   return (
     <div className="site-multiselect" ref={ref}>
       <button type="button" className="site-multiselect-btn" onClick={()=>setOpen(o=>!o)}>{label} ▾</button>
@@ -1540,7 +1510,7 @@ function SiteMultiSelect({ sites, selectedSiteIds, onChange }){
           </div>
           {sites.length===0 ? (
             <p className="site-multiselect-empty">등록된 현장이 없습니다</p>
-          ) : sites.map(s => (
+          ) : sortedSites.map(s => (
             <label className="site-multiselect-item" key={s.id}>
               <input type="checkbox" checked={isChecked(s.id)} onChange={()=>toggleSite(s.id)} />
               {s.name}{isSiteEnded(s) && <span style={{color:"var(--ink-soft)", fontWeight:600}}> (종료)</span>}
@@ -1567,7 +1537,12 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
     setSelectedSiteIds(activeIds.length ? activeIds : sites.map(s=>s.id));
   }, [sites]);
   const [chipStyle, setChipStyle] = useState(() => loadLS("scheduler:chipStyle", "fill")); // "fill" | "text"
-  const [chipFontSize, setChipFontSize] = useState(() => loadLS("scheduler:chipFontSize", 28));
+  const [chipFontSize, setChipFontSize] = useState(() => {
+    const saved = loadLS("scheduler:chipFontSize", 22);
+    // 예전에 있던 "기본"(28)·"매우 작게"(13) 옵션이 삭제되었으므로, 그 값이 저장돼 있던
+    // 브라우저는 가장 가까운 새 기본값(조금 작게=22)으로 자동 이동시킵니다.
+    return (saved===22 || saved===17) ? saved : 22;
+  });
   useEffect(() => saveLS("scheduler:chipFontSize", chipFontSize), [chipFontSize]);
   useEffect(() => saveLS("scheduler:chipStyle", chipStyle), [chipStyle]);
   const [selectedDate, setSelectedDate] = useState(null); // full "YYYY-MM-DD" string, or null
@@ -1722,19 +1697,6 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
 
   const todayFull = todayStr();
 
-  // agenda view: every schedule across all time (respecting the site filter), grouped by start month
-  const agendaGroups = useMemo(() => {
-    const combined = [...filtered, ...projectItems];
-    const sorted = combined.sort((a,b) => scheduleRange(a).start.localeCompare(scheduleRange(b).start));
-    const groups = {};
-    sorted.forEach(sc => {
-      const key = scheduleRange(sc).start.slice(0,7); // YYYY-MM
-      if(!groups[key]) groups[key] = [];
-      groups[key].push(sc);
-    });
-    return Object.entries(groups);
-  }, [filtered, projectItems]);
-
   // renders one month's dow-row + week grid (used twice, stacked vertically)
   function renderCalendarBlock(monthCursors, sitesOverride){
     const weeks = buildContinuousWeeks(monthCursors);
@@ -1793,26 +1755,8 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                 }));
                 return (
                   <div className={"week-row" + weekParity} key={wi}>
-                    <div className="cal-grid has-labels">
-                      <div className="site-label-col">
-                        <span className="cal-date" style={{visibility:"hidden"}}>0<span className="cal-dow-inline">일</span></span>
-                        {weekSiteList.map(site => (
-                          <div
-                            key={site.id}
-                            className={"site-label-tab" + (site.abbreviation ? " has-abbr" : "")}
-                            style={{ flex:`1 1 ${100/weekSiteList.length}%`, background: siteColorMap[site.id]+"1c", borderLeftColor: siteColorMap[site.id] }}
-                            title={site.name}
-                          >
-                            {site.abbreviation ? (
-                              <span className="site-label-abbr">
-                                {formatAbbrLines(site.abbreviation).map((line, i, arr) => (
-                                  <React.Fragment key={i}>{line}{i<arr.length-1 && <br/>}</React.Fragment>
-                                ))}
-                              </span>
-                            ) : <span>{site.name}</span>}
-                          </div>
-                        ))}
-                      </div>
+                    <div className="cal-grid has-labels cal-date-row">
+                      <div className="cal-dow-spacer" />
                       {weekDays.map((cell, di) => {
                         const dateStr = dateStrs[di];
                         const aboveCell = wi>0 ? weeks[wi-1][di] : null;
@@ -1821,6 +1765,8 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                         const leftBoundary = cell && leftCell && monthKeyOf(cell)!==monthKeyOf(leftCell);
                         const tintOn = cell && cell.m % 2 === 1;
                         const holidayName = cell && krHoliday(dateStr);
+                        const items = cell ? dayItems(dateStr, weekSiteList) : [];
+                        const hasAnyActive = items.some(item => item.active);
                         return (
                           <div
                             key={di}
@@ -1836,98 +1782,134 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                 {cell.day}<span className="cal-dow-inline">{holidayName || DOW[di]}</span>
                               </span>
                             )}
-                            {cell && (() => {
-                              const items = dayItems(dateStr, weekSiteList);
-                              const hasAnyActive = items.some(item => item.active);
-                              if(!hasAnyActive){
-                                return (
-                                  <div
-                                    className="cal-empty-add"
-                                    title="클릭해서 이 날짜에 미리 일정 추가"
-                                    onClick={e=>{ e.stopPropagation(); setQuickAdd({siteId:null, date:dateStr}); }}
-                                  >
-                                    + 일정 추가
-                                  </div>
-                                );
-                              }
-                              return (
-                              <div className="site-lane-wrap">
-                                {items.map((item, idx) => {
-                                  const siteColor = siteColorMap[item.site.id];
-                                  const titleText = `${item.site.name}${item.start && item.end ? ` 전체공사 (${item.start} ~ ${item.end})` : ""}`;
-                                  const laneStyle = {
-                                    flex: items.length ? `1 1 ${100/items.length}%` : "1",
-                                    background: item.active ? siteColor + "48" : "transparent",
-                                    borderRight: idx < items.length-1 ? "2px solid var(--navy-deep)" : "none",
-                                    boxSizing: "border-box",
-                                  };
-                                  const visibleTrades = item.trades.filter(t => t.trade.id!=="misc");
-                                  const tradeSlots = Array.from({length: Math.max(3, visibleTrades.length)}, (_, i) => visibleTrades[i] || null);
-                                  return (
-                                    <div
-                                      key={idx}
-                                      className={"site-day-block" + (!item.active ? " empty-lane" : "")}
-                                      style={laneStyle}
-                                      title={item.active ? titleText : ""}
-                                    >
-                                      <div className="trade-slots-fill">
-                                        {tradeSlots.map((tr, ti) => (
-                                          <div
-                                            className={"trade-slot" + (tr ? "" : " trade-slot-empty")}
-                                            key={ti}
-                                            title={tr ? "" : "클릭해서 이 날짜에 공정 추가"}
-                                            onClick={tr ? undefined : (e=>{ e.stopPropagation(); setQuickAdd({siteId: item.site.id, date: dateStr}); })}
-                                          >
-                                            {tr && (
-                                              <div
-                                                className={"trade-day-chip" + (chipStyle==="text" ? " chip-text-mode" : "")}
-                                                style={chipStyle==="text" ? {background:"transparent"} : {background: tr.trade.color}}
-                                                title={`${item.site.name} · ${tr.trade.name}${tr.workerName ? " · "+tr.workerName : ""}${tr.memo ? " · "+tr.memo : ""} (${tr.start} ~ ${tr.end}) — 드래그로 날짜 이동, 클릭하면 수정`}
-                                                draggable
-                                                onDragStart={e=>handleChipDragStart(e, tr.id, dateStr)}
-                                                onDragEnd={()=>setDragOverDate(null)}
-                                                onClick={e=>{ e.stopPropagation(); setEditingScheduleId(tr.id); }}
-                                              >
-                                                <span className="chip-main" style={{fontSize: chipFontSize+"px", ...(chipStyle==="text" ? {color: tr.trade.color, fontWeight:800} : {})}}>
-                                                  {tr.trade.name}{tr.laborUnits!=null && ` ${tr.laborUnits}품`}
-                                                </span>
-                                              </div>
-                                            )}
-                                          </div>
-                                        ))}
-                                      </div>
-                                      {(() => {
-                                        const workers = [...new Set(item.trades.flatMap(t => splitWorkerNames(t.workerName)))];
-                                        const canEdit = true;
-                                        return (
-                                          <div
-                                            className={"site-worker-row" + (canEdit ? " site-worker-row-clickable" : "")}
-                                            title={canEdit ? "클릭해서 담당자 지정" : ""}
-                                            onClick={canEdit ? (e=>{
-                                              e.stopPropagation();
-                                              const modalTrades = item.trades.map(t => ({ key:t.id, id:t.id, isNew:false, trade:t.trade, workerName:t.workerName }));
-                                              const miscTrade = trades.find(tr => tr.id==="misc");
-                                              const hasMisc = item.trades.some(t => t.trade.id==="misc");
-                                              if(miscTrade && !hasMisc){
-                                                modalTrades.push({ key:"misc-new", id:null, isNew:true, trade:miscTrade, workerName:"" });
-                                              }
-                                              setWorkerEditor({ site: item.site, date: dateStr, trades: modalTrades });
-                                            }) : undefined}
-                                          >
-                                            {workers.length>0 ? <span>👷 {workers.join(", ")}</span> : (canEdit && <span className="site-worker-row-hint">+ 담당자 지정</span>)}
-                                          </div>
-                                        );
-                                      })()}
-                                    </div>
-                                  );
-                                })}
+                            {cell && !hasAnyActive && (
+                              <div
+                                className="cal-empty-add"
+                                title="클릭해서 이 날짜에 미리 일정 추가"
+                                onClick={e=>{ e.stopPropagation(); setQuickAdd({siteId:null, date:dateStr}); }}
+                              >
+                                + 일정 추가
                               </div>
-                              );
-                            })()}
+                            )}
                           </div>
                         );
                       })}
                     </div>
+                    {weekSiteList.length>0 && (() => {
+                      const weekStart = dateStrs.find(Boolean);
+                      const lastValid = [...dateStrs].reverse().find(Boolean);
+                      const weekEnd = lastValid;
+                      let rowCursor = 1;
+                      const siteBlocks = weekSiteList.map((site, sidx) => {
+                        const siteSchedules = filtered.filter(sc => sc.siteId===site.id && sc.tradeId!=="misc");
+                        const events = [];
+                        siteSchedules.forEach(sc => {
+                          const { start, end } = scheduleRange(sc);
+                          if(!weekStart || !weekEnd || end<weekStart || start>weekEnd) return;
+                          const trade = tradeById[sc.tradeId];
+                          if(!trade) return;
+                          const clipStart = start<weekStart ? weekStart : start;
+                          const clipEnd = end>weekEnd ? weekEnd : end;
+                          events.push({ sc, trade, start: clipStart, end: clipEnd });
+                        });
+                        events.sort((a,b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
+                        const slotEndDates = [];
+                        events.forEach(ev => {
+                          let slot = slotEndDates.findIndex(d => d < ev.start);
+                          if(slot===-1) slot = slotEndDates.length;
+                          slotEndDates[slot] = ev.end;
+                          ev.slot = slot;
+                        });
+                        const slotCount = Math.max(3, slotEndDates.length);
+                        const slotsRender = [];
+                        for(let s=0; s<slotCount; s++){
+                          const slotEvents = events.filter(ev => ev.slot===s);
+                          const coverage = Array(7).fill(null);
+                          slotEvents.forEach(ev => {
+                            const si = dateStrs.indexOf(ev.start), ei = dateStrs.indexOf(ev.end);
+                            for(let d=si; d<=ei; d++) if(d>=0) coverage[d] = ev;
+                          });
+                          const cells = [];
+                          let d = 0;
+                          while(d<7){
+                            if(!dateStrs[d]){ cells.push({type:"blank", colStart:d+1, colEnd:d+2}); d++; continue; }
+                            const ev = coverage[d];
+                            if(ev){
+                              const si = dateStrs.indexOf(ev.start), ei = dateStrs.indexOf(ev.end);
+                              cells.push({ type:"bar", event: ev, colStart: si+1, colEnd: ei+2, dateStr: dateStrs[si] });
+                              d = ei+1;
+                            } else {
+                              cells.push({ type:"empty", colStart: d+1, colEnd: d+2, dateStr: dateStrs[d] });
+                              d++;
+                            }
+                          }
+                          slotsRender.push(cells);
+                        }
+                        const rowStart = rowCursor;
+                        const rowEnd = rowCursor + slotCount;
+                        rowCursor = rowEnd;
+                        return { site, sidx, rowStart, rowEnd, slotCount, slotsRender };
+                      });
+                      return (
+                        <div className="cal-grid has-labels cal-site-row-grid" style={{gridAutoRows:"auto"}}>
+                          {siteBlocks.map(({ site, sidx, rowStart, rowEnd, slotsRender }) => (
+                            <React.Fragment key={site.id}>
+                              <div
+                                className={"site-label-tab" + (site.abbreviation ? " has-abbr" : "") + (sidx%2===0 ? " site-band-even" : " site-band-odd") + (sidx>0 ? " site-band-start" : "")}
+                                style={{ gridColumn:"1", gridRow:`${rowStart} / ${rowEnd}`, color: siteColorMap[site.id] }}
+                                title={site.name + (site.manager ? ` (${site.manager})` : "")}
+                              >
+                                <div className="site-label-tab-inner">
+                                  {site.abbreviation ? (
+                                    <span className="site-label-abbr">
+                                      {formatAbbrLines(site.abbreviation).map((line, i, arr) => (
+                                        <React.Fragment key={i}>{line}{i<arr.length-1 && <br/>}</React.Fragment>
+                                      ))}
+                                    </span>
+                                  ) : <span>{site.name}</span>}
+                                  {site.manager && <span className="site-label-manager">({site.manager})</span>}
+                                </div>
+                              </div>
+                              {slotsRender.map((cells, si) => cells.map((c, ci) => {
+                                const rowLine = rowStart + si;
+                                const bandClass = (sidx%2===0 ? " site-band-even" : "") + (si===0 && sidx>0 ? " site-band-start" : "");
+                                if(c.type==="blank"){
+                                  return <div key={ci} style={{gridColumn:`${c.colStart+1} / ${c.colEnd+1}`, gridRow: rowLine}} />;
+                                }
+                                if(c.type==="empty"){
+                                  return (
+                                    <div
+                                      key={ci}
+                                      className={"trade-slot-empty" + bandClass}
+                                      style={{gridColumn:`${c.colStart+1} / ${c.colEnd+1}`, gridRow: rowLine}}
+                                      title="클릭해서 이 날짜에 공정 추가"
+                                      onClick={e=>{ e.stopPropagation(); setQuickAdd({siteId: site.id, date: c.dateStr}); }}
+                                    />
+                                  );
+                                }
+                                const tr = c.event;
+                                return (
+                                  <div
+                                    key={ci}
+                                    className={"trade-day-chip" + bandClass + (chipStyle==="text" ? " chip-text-mode" : "")}
+                                    style={{ gridColumn:`${c.colStart+1} / ${c.colEnd+1}`, gridRow: rowLine, ...(chipStyle==="text" ? {background:"transparent"} : {background: tr.trade.color}) }}
+                                    title={`${site.name} · ${tr.trade.name}${tr.sc.workerName ? " · "+tr.sc.workerName : ""}${tr.sc.memo ? " · "+tr.sc.memo : ""} (${tr.start} ~ ${tr.end}) — 드래그로 날짜 이동, 클릭하면 수정`}
+                                    draggable
+                                    onDragStart={e=>handleChipDragStart(e, tr.sc.id, c.dateStr)}
+                                    onDragEnd={()=>setDragOverDate(null)}
+                                    onClick={e=>{ e.stopPropagation(); setEditingScheduleId(tr.sc.id); }}
+                                  >
+                                    <span className="chip-main" style={{fontSize: chipFontSize+"px", ...(chipStyle==="text" ? {color: tr.trade.color, fontWeight:800} : {})}}>
+                                      {tr.trade.name}{tr.sc.laborUnits!=null && ` ${tr.sc.laborUnits}품`}{site.manager && ` (${site.manager})`}
+                                    </span>
+                                  </div>
+                                );
+                              }))}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -1950,7 +1932,6 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
           <div className="view-toggle">
             <button className={view==="month"?"active":""} onClick={()=>setView("month")}>달력형</button>
             <button className={view==="bysite"?"active":""} onClick={()=>setView("bysite")}>현장별 보기</button>
-            <button className={view==="agenda"?"active":""} onClick={()=>setView("agenda")}>전체 목록형</button>
           </div>
           {(view==="month" || view==="bysite") && (
             <div className="view-toggle" title="공정 막대 색상 표시 방식">
@@ -1960,10 +1941,8 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
           )}
           {(view==="month" || view==="bysite") && (
             <div className="view-toggle" title="공정 막대 글자 크기">
-              <button className={chipFontSize===28?"active":""} onClick={()=>setChipFontSize(28)}>기본</button>
               <button className={chipFontSize===22?"active":""} onClick={()=>setChipFontSize(22)}>조금 작게</button>
               <button className={chipFontSize===17?"active":""} onClick={()=>setChipFontSize(17)}>작게</button>
-              <button className={chipFontSize===13?"active":""} onClick={()=>setChipFontSize(13)}>매우 작게</button>
             </div>
           )}
           <div className="cal-filter">
@@ -2030,52 +2009,6 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
           </div>
         );
       })()}
-
-      {view==="agenda" && (
-        <div className="card">
-          {agendaGroups.length===0 ? (
-            <div className="empty">등록된 일정이 없습니다. 현장관리 탭에서 공사별 기간을 추가해보세요.</div>
-          ) : (
-            agendaGroups.map(([monthKey, items]) => (
-              <div className="agenda-group" key={monthKey}>
-                <p className="agenda-month">{monthKey.replace("-", "년 ")}월</p>
-                {items.map(sc => {
-                  const isProject = sc.isProject;
-                  const trade = isProject ? null : tradeById[sc.tradeId];
-                  const site = siteById[sc.siteId];
-                  const contact = isProject ? null : trade?.contacts.find(c=>c.id===sc.contactId);
-                  const { start, end } = scheduleRange(sc);
-                  const d = new Date(start + "T00:00:00");
-                  const isPast = end < todayFull;
-                  const span = daySpan(sc);
-                  return (
-                    <div
-                      className={"agenda-item" + (isPast ? " past" : "")}
-                      key={sc.id}
-                      onClick={()=> !isProject && setEditingScheduleId(sc.id)}
-                      style={isProject ? {} : {cursor:"pointer"}}
-                    >
-                      <span className="agenda-swatch" style={{background: isProject ? "var(--navy-deep)" : trade?.color}} />
-                      <div className="agenda-date">
-                        {d.getDate()}
-                        <span className="dow">{DOW[d.getDay()]}</span>
-                      </div>
-                      <div className="agenda-body">
-                        <div className="agenda-title">{isProject ? `🗂 ${site?.name} 전체 공사기간` : `${trade?.name} · ${site?.name}`}</div>
-                        <div className="agenda-sub">
-                          {start}{end!==start && ` ~ ${end}`} ({span}일)
-                          {!isProject && <> · 담당자: {contact?.name || "미지정"} {contact?.phone && `· ${contact.phone}`} {sc.memo && `· ${sc.memo}`}</>}
-                        </div>
-                      </div>
-                      {!isProject && <button className="btn btn-danger btn-sm" onClick={e=>{ e.stopPropagation(); setSchedules(prev=>prev.filter(s=>s.id!==sc.id)); }}>삭제</button>}
-                    </div>
-                  );
-                })}
-              </div>
-            ))
-          )}
-        </div>
-      )}
 
       {editingScheduleId && (() => {
         const sc = schedules.find(s => s.id===editingScheduleId);
@@ -2471,232 +2404,6 @@ function LaborTab({ trades, sites, schedules }){
   );
 }
 
-function WorkerMultiSelect({ workers, selected, onChange }){
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    function handleOutside(e){ if(ref.current && !ref.current.contains(e.target)) setOpen(false); }
-    document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, []);
-
-  const allSelected = selected===null;
-  const isChecked = w => allSelected || selected.includes(w);
-  const count = allSelected ? workers.length : selected.length;
-  const label = workers.length===0 ? "담당자 없음"
-    : allSelected ? "전체 담당자"
-    : count===0 ? "담당자 선택"
-    : count===1 ? selected[0]
-    : `담당자 ${count}명`;
-
-  function toggle(w){
-    if(allSelected){
-      onChange(workers.filter(x=>x!==w));
-    } else {
-      const next = selected.includes(w) ? selected.filter(x=>x!==w) : [...selected, w];
-      onChange(next.length===workers.length ? null : next);
-    }
-  }
-
-  return (
-    <div className="site-multiselect" ref={ref}>
-      <button type="button" className="site-multiselect-btn" onClick={()=>setOpen(o=>!o)}>{label} ▾</button>
-      {open && (
-        <div className="site-multiselect-panel">
-          <div className="site-multiselect-actions">
-            <button type="button" onClick={()=>onChange(null)}>전체 선택</button>
-            <button type="button" onClick={()=>onChange([])}>전체 해제</button>
-          </div>
-          {workers.length===0 ? (
-            <p className="site-multiselect-empty">등록된 담당자가 없습니다</p>
-          ) : workers.map(w => (
-            <label className="site-multiselect-item" key={w}>
-              <input type="checkbox" checked={isChecked(w)} onChange={()=>toggle(w)} />
-              {w}
-            </label>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ---------- Worker schedule tab (담당자 일정 — 날짜×담당자 매트릭스) ---------- */
-function WorkerScheduleTab({ trades, sites, schedules }){
-  const [cursor, setCursor] = useState(() => { const d = new Date(); return {y: d.getFullYear(), m: d.getMonth()}; });
-  const [selectedWorkers, setSelectedWorkers] = useState(null); // null = all
-
-  const tradeById = Object.fromEntries(trades.map(t=>[t.id,t]));
-  const siteById = Object.fromEntries(sites.map(s=>[s.id,s]));
-  const siteColorMap = Object.fromEntries(sites.map((s,i) => [s.id, s.color || PROJECT_COLOR_POOL[i % PROJECT_COLOR_POOL.length]]));
-
-  function workerNamesOf(sc){
-    const trade = tradeById[sc.tradeId];
-    const contact = trade?.contacts.find(c => c.id===sc.contactId);
-    const names = splitWorkerNames(sc.workerName);
-    return names.length ? names : (contact?.name ? [contact.name] : []);
-  }
-
-  const allWorkers = useMemo(() => {
-    const set = new Set();
-    schedules.forEach(sc => { workerNamesOf(sc).forEach(n => set.add(n)); });
-    return Array.from(set).sort();
-  }, [schedules, trades]);
-
-  // custom column order (drag-to-reorder), persisted locally; new workers are appended,
-  // removed workers drop out automatically
-  const [workerOrder, setWorkerOrder] = useState(() => loadLS("scheduler:workerOrder", []));
-  useEffect(() => { saveLS("scheduler:workerOrder", workerOrder); }, [workerOrder]);
-  useEffect(() => {
-    setWorkerOrder(prev => {
-      const kept = prev.filter(w => allWorkers.includes(w));
-      const added = allWorkers.filter(w => !kept.includes(w));
-      const next = [...kept, ...added];
-      const changed = next.length!==prev.length || next.some((w,i) => w!==prev[i]);
-      return changed ? next : prev;
-    });
-  }, [allWorkers.join("|")]);
-
-  const [dragOverWorker, setDragOverWorker] = useState(null);
-  function reorderWorkers(draggedName, targetName){
-    if(draggedName===targetName) return;
-    setWorkerOrder(prev => {
-      const next = prev.filter(w => w!==draggedName);
-      const idx = next.indexOf(targetName);
-      next.splice(idx===-1 ? next.length : idx, 0, draggedName);
-      return next;
-    });
-  }
-
-  const orderedAllWorkers = workerOrder.length ? workerOrder : allWorkers;
-  const workers = selectedWorkers===null ? orderedAllWorkers : orderedAllWorkers.filter(w => selectedWorkers.includes(w));
-
-  function changeMonth(delta){
-    setCursor(prev => {
-      let nm = prev.m + delta, ny = prev.y;
-      while(nm<0){ nm+=12; ny--; }
-      while(nm>11){ nm-=12; ny++; }
-      return { y: ny, m: nm };
-    });
-  }
-
-  const nextCursor = cursor.m>=11 ? { y: cursor.y+1, m: 0 } : { y: cursor.y, m: cursor.m+1 };
-  const rangeStart = new Date(cursor.y, cursor.m, 1);
-  const rangeEnd = new Date(nextCursor.y, nextCursor.m+1, 0); // last day of the second month
-  const totalDays = Math.round((rangeEnd - rangeStart) / 86400000) + 1;
-  const dateList = Array.from({length: totalDays}, (_, i) => {
-    const d = new Date(rangeStart); d.setDate(d.getDate()+i);
-    const dateStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-    return { day: d.getDate(), month: d.getMonth()+1, dateStr, dow: d.getDay() };
-  });
-
-  function siteForWorkerOnDate(worker, dateStr){
-    const sc = schedules.find(sc => {
-      if(!workerNamesOf(sc).includes(worker)) return false;
-      const { start, end } = scheduleRange(sc);
-      return dateStr>=start && dateStr<=end;
-    });
-    if(!sc) return null;
-    return siteById[sc.siteId] || null;
-  }
-
-  const [showEmptyDates, setShowEmptyDates] = useState(false);
-  const activeDates = dateList.filter(d => workers.some(w => siteForWorkerOnDate(w, d.dateStr)));
-  const visibleDateList = showEmptyDates || activeDates.length===0
-    ? (showEmptyDates ? dateList : activeDates)
-    : dateList.filter(d => d.dateStr>=activeDates[0].dateStr && d.dateStr<=activeDates[activeDates.length-1].dateStr);
-  return (
-    <div>
-      <div className="section-head">
-        <div>
-          <p className="eyebrow">LABOR SCHEDULE</p>
-          <h2>담당자별 일정</h2>
-        </div>
-        <div style={{display:"flex", gap:10, alignItems:"center", flexWrap:"wrap"}}>
-          <WorkerMultiSelect workers={orderedAllWorkers} selected={selectedWorkers} onChange={setSelectedWorkers} />
-          <label style={{display:"flex", alignItems:"center", gap:6, fontSize:12.5, color:"var(--ink-soft)", cursor:"pointer"}}>
-            <input type="checkbox" checked={showEmptyDates} onChange={e=>setShowEmptyDates(e.target.checked)} />
-            빈 날짜도 표시
-          </label>
-          <div className="cal-nav">
-            <button onClick={()=>changeMonth(-1)}>‹</button>
-            <span className="cal-month">{cursor.y}.{pad(cursor.m+1)} - {nextCursor.y}.{pad(nextCursor.m+1)}</span>
-            <button onClick={()=>changeMonth(1)}>›</button>
-          </div>
-        </div>
-      </div>
-
-      <p style={{fontSize:13, color:"var(--ink-soft)", marginBottom:16, maxWidth:640}}>
-        선택한 담당자가 날짜별로 어느 현장에 있는지 한눈에 봅니다. 셀 색상은 현장별 색상과 같습니다.
-      </p>
-
-      {workers.length===0 ? (
-        <div className="empty">표시할 담당자가 없습니다. 위에서 담당자를 선택해주세요.</div>
-      ) : visibleDateList.length===0 ? (
-        <div className="empty">이번 달엔 선택한 담당자의 일정이 없습니다.<br/>"빈 날짜도 표시"를 체크하면 전체 날짜를 볼 수 있어요.</div>
-      ) : (
-        <div className="card" style={{overflowX:"auto", padding:0}}>
-          <table className="worker-sched-table">
-            <thead>
-              <tr>
-                <th>날짜</th>
-                <th>요일</th>
-                {workers.map(w => (
-                  <th
-                    key={w}
-                    className={dragOverWorker===w ? "th-drag-over" : ""}
-                    draggable
-                    title="드래그해서 순서 변경"
-                    onDragStart={e=>{ e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/plain", w); }}
-                    onDragOver={e=>e.preventDefault()}
-                    onDragEnter={e=>{ e.preventDefault(); setDragOverWorker(w); }}
-                    onDragLeave={()=>{ if(dragOverWorker===w) setDragOverWorker(null); }}
-                    onDrop={e=>{ e.preventDefault(); setDragOverWorker(null); reorderWorkers(e.dataTransfer.getData("text/plain"), w); }}
-                    onDragEnd={()=>setDragOverWorker(null)}
-                  >
-                    {w}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {visibleDateList.map(d => (
-                <tr key={d.dateStr} className={d.dow===0 ? "row-sun" : d.dow===6 ? "row-sat" : ""}>
-                  <td>{d.month}/{d.day}</td>
-                  <td>{DOW[d.dow]}</td>
-                  {workers.map(w => {
-                    const site = siteForWorkerOnDate(w, d.dateStr);
-                    return (
-                      <td
-                        key={w}
-                        style={site ? { background: siteColorMap[site.id]+"55", color:"var(--ink)", fontWeight:700 } : {}}
-                        title={site ? site.name : ""}
-                      >
-                        {site ? (site.abbreviation || site.name.slice(0,2)) : ""}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {sites.length>0 && (
-        <div className="cal-legend" style={{marginTop:14}}>
-          {sites.map(s => (
-            <span className="legend-item" key={s.id}>
-              <span className="legend-dot" style={{background:siteColorMap[s.id]}} />
-              {s.abbreviation || s.name.slice(0,2)} = {s.name}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 </script>
