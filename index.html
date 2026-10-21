@@ -2035,19 +2035,23 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", JSON.stringify({ scheduleId, originDate }));
   }
-  function handleCellDrop(e, dropDateStr){
+  function handleCellDrop(e, dropDateStr, dropSlot){
     e.preventDefault();
     setDragOverDate(null);
     let payload;
     try{ payload = JSON.parse(e.dataTransfer.getData("text/plain")); }catch(err){ return; }
     if(!payload || !payload.scheduleId || !payload.originDate || !dropDateStr) return;
     const delta = daysBetweenStr(payload.originDate, dropDateStr);
-    if(delta===0) return;
+    const target = schedules.find(sc => sc.id===payload.scheduleId);
+    const slotChanged = dropSlot!=null && target && target.slotPref!==dropSlot;
+    if(delta===0 && !slotChanged) return;
     setSchedules(prev => prev.map(sc => {
       if(sc.id!==payload.scheduleId) return sc;
       const { date, ...rest } = sc;
       const { start, end } = scheduleRange(sc);
-      return { ...rest, startDate: shiftDateStr(start, delta), endDate: shiftDateStr(end, delta) };
+      const next = { ...rest, startDate: shiftDateStr(start, delta), endDate: shiftDateStr(end, delta) };
+      if(dropSlot!=null) next.slotPref = dropSlot; // 놓은 줄을 기억
+      return next;
     }));
   }
   function deleteScheduleById(scheduleId, label){
@@ -2351,14 +2355,22 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
                           });
                         });
                         events.sort((a,b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
-                        const slotEndDates = [];
+                        // 줄 배치: 끌어다 놓아서 줄을 지정한 일정(slotPref)을 먼저 그 줄에 두고,
+                        // 나머지는 비어 있는 가장 위 줄부터 자동으로 채웁니다
+                        const slotRanges = []; // slot -> [[start,end], ...]
+                        const isFree = (slot, ev) => !(slotRanges[slot]||[]).some(([a,b]) => !(ev.end < a || ev.start > b));
+                        const place = (ev, slot) => { (slotRanges[slot] = slotRanges[slot] || []).push([ev.start, ev.end]); ev.slot = slot; };
                         events.forEach(ev => {
-                          let slot = slotEndDates.findIndex(d => d < ev.start);
-                          if(slot===-1) slot = slotEndDates.length;
-                          slotEndDates[slot] = ev.end;
-                          ev.slot = slot;
+                          const pref = ev.scs.map(x => x.slotPref).find(v => v!=null);
+                          ev.pref = pref!=null ? Number(pref) : null;
                         });
-                        const slotCount = Math.max(3, slotEndDates.length);
+                        events.filter(ev => ev.pref!=null).forEach(ev => { if(isFree(ev.pref, ev)) place(ev, ev.pref); });
+                        events.filter(ev => ev.slot==null).forEach(ev => {
+                          let slot = 0;
+                          while(!isFree(slot, ev)) slot++;
+                          place(ev, slot);
+                        });
+                        const slotCount = Math.max(3, slotRanges.length);
                         const slotsRender = [];
                         for(let s=0; s<slotCount; s++){
                           const slotEvents = events.filter(ev => ev.slot===s);
@@ -2425,7 +2437,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
                                       title="클릭해서 이 날짜에 공정 추가"
                                       onDragOver={e=>e.preventDefault()}
                                       onDragEnter={e=>{ e.preventDefault(); setDragOverDate(c.dateStr); }}
-                                      onDrop={e=>{ e.stopPropagation(); handleCellDrop(e, c.dateStr); }}
+                                      onDrop={e=>{ e.stopPropagation(); handleCellDrop(e, c.dateStr, si); }}
                                       onClick={e=>{ e.stopPropagation(); setQuickAdd({siteId: site.id, date: c.dateStr}); }}
                                     />
                                   );
@@ -2444,7 +2456,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
                                     onDragEnd={()=>setDragOverDate(null)}
                                     onDragOver={e=>e.preventDefault()}
                                     onDragEnter={e=>{ e.preventDefault(); setDragOverDate(c.dateStr); }}
-                                    onDrop={e=>{ e.stopPropagation(); handleCellDrop(e, c.dateStr); }}
+                                    onDrop={e=>{ e.stopPropagation(); handleCellDrop(e, c.dateStr, si); }}
                                     onClick={e=>{ e.stopPropagation(); setEditingScheduleId(sc.id); }}
                                   >
                                     <span className="chip-main" style={{fontSize: chipFontSize+"px"}}>
