@@ -348,7 +348,7 @@
     cursor:pointer;border-radius:0;min-height:38px;box-sizing:border-box;
     border:1px solid var(--excel-line-soft);background:#fff;
   }
-  .trade-slot-empty:hover{background:rgba(226,121,47,0.18);}
+  .trade-slot-empty:hover{filter:brightness(.93);box-shadow:inset 0 0 0 2px var(--accent);}
   .trade-day-chip{
     width:100%;min-height:38px;height:auto;border-radius:0;display:flex;align-items:center;padding:4px 7px;overflow:visible;
     box-shadow:none;box-sizing:border-box;cursor:grab;border:1px solid var(--excel-line-soft);
@@ -583,6 +583,18 @@ const KR_HOLIDAYS_2026 = {
 function krHoliday(dateStr){ return KR_HOLIDAYS_2026[dateStr] || null; }
 
 // a curated set of clearly distinguishable colors for the site color picker
+// 캘린더에서 현장 칸 전체에 깔리는 배경색. 이웃한 현장끼리 색상이 확 달라 보이도록
+// 보색에 가까운 순서로 배치한 파스텔톤입니다 (복숭아↔하늘, 레몬↔라벤더, 민트↔핑크 …).
+const SITE_BG_PASTELS = [
+  "#FFD9C7","#CFE3FF","#FFF0B3","#E4D7FF","#CDEFD8","#FFD3E2","#D3F1F4","#F3E0C9",
+];
+// 공정이 들어간 칸은 같은 현장 색에서 살짝만 진하게 해서 빈칸과 구분합니다.
+function deepenColor(hex, amount=0.1){
+  if(!hex || hex[0]!=="#" || hex.length!==7) return hex;
+  const f = v => Math.round(parseInt(v,16)*(1-amount)).toString(16).padStart(2,"0");
+  return "#" + f(hex.slice(1,3)) + f(hex.slice(3,5)) + f(hex.slice(5,7));
+}
+
 const SITE_COLOR_SWATCHES = [
   "#16233F","#B23A48","#1B7A4B","#C9701A","#5B2C87","#0E7A8C","#8C1D40","#3F5EA8",
   "#A0522D","#2E7D6B","#C0392B","#6C3483","#117864","#B7950B","#943126","#1F618D",
@@ -608,10 +620,10 @@ function daySpan(sc){
 }
 // Lightens/desaturates a stored trade color for a softer, pastel calendar chip
 // background, without needing to touch the trade's own saved color value.
-function pastelizeColor(hex){
+function pastelizeColor(hex, amount=0.6){
   if(!hex || hex[0]!=="#" || hex.length!==7) return hex;
   const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
-  const mix = v => Math.round(v + (255-v)*0.6);
+  const mix = v => Math.round(v + (255-v)*amount);
   const toHex = v => v.toString(16).padStart(2,"0");
   return `#${toHex(mix(r))}${toHex(mix(g))}${toHex(mix(b))}`;
 }
@@ -919,6 +931,7 @@ function SiteFormModal({ onClose, onSave, initial }){
   const [abbreviation, setAbbreviation] = useState(initial?.abbreviation || "");
   const [manager, setManager] = useState(initial?.manager || "");
   const [color, setColor] = useState(initial?.color || "");
+  const [bgColor, setBgColor] = useState(initial?.bgColor || "");
   const [address, setAddress] = useState(initial?.address || "");
   const [memo, setMemo] = useState(initial?.memo || "");
   const [floorPlan, setFloorPlan] = useState(initial?.floorPlan || null);
@@ -949,7 +962,7 @@ function SiteFormModal({ onClose, onSave, initial }){
     if(!name.trim() || !address.trim()){ alert("현장명과 주소는 필수입니다."); return; }
     if(projectStart && projectEnd && projectEnd < projectStart){ alert("전체 공사 종료일이 시작일보다 빠를 수 없습니다."); return; }
     onSave({
-      name: name.trim(), abbreviation: abbreviation.trim(), manager: manager.trim(), color, address: address.trim(), memo: memo.trim(), floorPlan, estimate,
+      name: name.trim(), abbreviation: abbreviation.trim(), manager: manager.trim(), color, bgColor, address: address.trim(), memo: memo.trim(), floorPlan, estimate,
       officeName: officeName.trim(), officePhone: officePhone.trim(),
       projectStart, projectEnd,
     });
@@ -980,7 +993,24 @@ function SiteFormModal({ onClose, onSave, initial }){
         </div>
 
         <div className="field">
-          <label>현장 색상 (캘린더·담당자 일정표에 사용)</label>
+          <label>캘린더 배경색 (현장 칸 전체에 깔리는 파스텔색 · 비워두면 자동)</label>
+          <div className="color-swatch-row">
+            {SITE_BG_PASTELS.map(c => (
+              <button
+                type="button"
+                key={c}
+                className={"color-swatch" + (bgColor===c ? " selected" : "")}
+                style={{background:c}}
+                onClick={()=>setBgColor(c)}
+                title={c}
+              />
+            ))}
+            {bgColor && <button type="button" className="btn btn-ghost btn-sm" onClick={()=>setBgColor("")}>자동으로</button>}
+          </div>
+        </div>
+
+        <div className="field">
+          <label>현장 글자색 (캘린더 왼쪽 현장명에 사용)</label>
           <div className="color-swatch-row">
             {SITE_COLOR_SWATCHES.map(c => (
               <button
@@ -1749,6 +1779,11 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
 
   // a distinct color per site for the overall-project header bar (stable regardless of filter)
   // — uses the site's own chosen color if set, otherwise falls back to an auto-assigned one
+  const siteBgMap = useMemo(() => {
+    const ordered = [...sites].sort((a,b) => (a.order??0) - (b.order??0));
+    return Object.fromEntries(ordered.map((s, i) => [s.id, s.bgColor || SITE_BG_PASTELS[i % SITE_BG_PASTELS.length]]));
+  }, [sites]);
+
   const siteColorMap = useMemo(() => Object.fromEntries(
     sites.map((s, i) => [s.id, s.color || PROJECT_COLOR_POOL[i % PROJECT_COLOR_POOL.length]])
   ), [sites]);
@@ -1971,7 +2006,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                             <React.Fragment key={site.id}>
                               <div
                                 className={"site-label-tab" + (site.abbreviation ? " has-abbr" : "")}
-                                style={{ gridColumn:"1", gridRow:`${rowStart} / ${rowEnd}`, background:"#fff", color: siteColorMap[site.id] }}
+                                style={{ gridColumn:"1", gridRow:`${rowStart} / ${rowEnd}`, background: siteBgMap[site.id], color: siteColorMap[site.id] }}
                                 title={site.name + (site.manager ? ` (${site.manager})` : "")}
                               >
                                 <div className="site-label-tab-inner">
@@ -1996,7 +2031,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                     <div
                                       key={ci}
                                       className="trade-slot-empty"
-                                      style={{gridColumn:`${c.colStart+1} / ${c.colEnd+1}`, gridRow: rowLine, ...extraStyle}}
+                                      style={{gridColumn:`${c.colStart+1} / ${c.colEnd+1}`, gridRow: rowLine, ...extraStyle, background: siteBgMap[site.id]}}
                                       title="클릭해서 이 날짜에 공정 추가"
                                       onClick={e=>{ e.stopPropagation(); setQuickAdd({siteId: site.id, date: c.dateStr}); }}
                                     />
@@ -2009,7 +2044,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                   <div
                                     key={ci}
                                     className="trade-day-chip"
-                                    style={{ gridColumn:`${c.colStart+1} / ${c.colEnd+1}`, gridRow: rowLine, ...extraStyle, background: pastelizeColor(tr.trade.color) }}
+                                    style={{ gridColumn:`${c.colStart+1} / ${c.colEnd+1}`, gridRow: rowLine, ...extraStyle, background: deepenColor(siteBgMap[site.id], 0.1) }}
                                     title={`${site.name} · ${tr.trade.name}${sc.workerName ? " · "+sc.workerName : ""}${sc.memo ? " · "+sc.memo : ""} (${r.start} ~ ${r.end}) — 클릭하면 담당자·연락처·품수 보기, 드래그로 날짜 이동`}
                                     draggable
                                     onDragStart={e=>handleChipDragStart(e, sc.id, c.dateStr)}
@@ -2067,14 +2102,11 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
 
           <div className="card cal-legend-card">
             <div className="cal-legend">
-              {projectItems.map(p => (
-                <span className="legend-item" key={p.id}>
-                  <span className="legend-dot" style={{background: siteColorMap[p.siteId]}} />
-                  {siteById[p.siteId]?.name} (전체공사)
+              {relevantSites.map(s => (
+                <span className="legend-item" key={s.id}>
+                  <span className="legend-dot" style={{background: siteBgMap[s.id], boxShadow:"inset 0 0 0 1px rgba(0,0,0,.25)"}} />
+                  {s.name}
                 </span>
-              ))}
-              {sortedTradeList(trades).map(t => (
-                <span className="legend-item" key={t.id}><span className="legend-dot" style={{background:t.color}} />{t.name}</span>
               ))}
             </div>
           </div>
