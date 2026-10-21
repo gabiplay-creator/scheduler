@@ -378,6 +378,9 @@
   .print-area .cal-month-badge, .print-area .cal-month-rail-spacer{display:none;}
   .print-area .cal-continuous{border:1px solid var(--excel-line);}
   .print-title{font-size:20px;margin:0 0 10px;color:#16233F;}
+  .print-sub{font-size:15px;color:#5B5F66;font-weight:700;}
+  .print-page{width:1100px;}
+  .print-page + .print-page{break-before:page;page-break-before:always;}
   @page{ size: A4 landscape; margin: 8mm; }
   @media print{
     body.printing{background:#fff !important;}
@@ -386,7 +389,7 @@
     body.printing .print-area{display:block;}
     body.printing .app{width:auto;padding:0;}
     body.printing .content{padding-top:0;}
-    body.printing .print-area{break-inside:avoid;page-break-inside:avoid;}
+    body.printing .print-page{break-inside:avoid;page-break-inside:avoid;}
     body.printing{margin:0;}
     body.printing .cal-month-badge{position:static;}
   }
@@ -1985,30 +1988,42 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
   }
   const [showJpg, setShowJpg] = useState(false);
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
-  const [printMonth, setPrintMonth] = useState(null); // {y, m} — 인쇄할 달
+  const [printMonths, setPrintMonths] = useState(null); // [{y, m}, ...] — 인쇄할 달들 (한 달 = 한 장)
   const printMenuRef = useRef(null);
   useEffect(() => {
     function outside(e){ if(printMenuRef.current && !printMenuRef.current.contains(e.target)) setPrintMenuOpen(false); }
     document.addEventListener("mousedown", outside);
     return () => document.removeEventListener("mousedown", outside);
   }, []);
-  // 인쇄: 고른 달 하나만 따로 그린 뒤 브라우저 인쇄창을 띄우고, 끝나면 원래 화면으로
-  function startPrint(m){
-    setPrintMonth(m);
+  // 선택된 현장들의 공정이 실제로 있는 달 목록 (인쇄 "공사기간 전체"용)
+  function workMonths(){
+    const set = new Set();
+    filtered.forEach(sc => {
+      const { start, end } = scheduleRange(sc);
+      let [y, m] = start.split("-").map(Number); m -= 1;
+      const [ey, em] = end.split("-").map(Number);
+      while((y < ey || (y===ey && m <= em-1)) && set.size < 24){ set.add(`${y}-${pad(m+1)}`); m++; if(m>11){ m=0; y++; } }
+    });
+    return [...set].sort().slice(0, 12).map(k => { const [y, m] = k.split("-").map(Number); return { y, m: m-1 }; });
+  }
+  // 인쇄: 고른 달들을 한 달에 한 장씩 따로 그린 뒤 브라우저 인쇄창을 띄우고, 끝나면 원래 화면으로
+  function startPrint(months){
+    if(!months.length){ alert("인쇄할 공정이 없어요."); return; }
+    setPrintMonths(months);
     document.body.classList.add("printing");
-    const done = () => { document.body.classList.remove("printing"); setPrintMonth(null); window.removeEventListener("afterprint", done); };
+    const done = () => { document.body.classList.remove("printing"); setPrintMonths(null); window.removeEventListener("afterprint", done); };
     window.addEventListener("afterprint", done);
-    // 한 달 전체가 A4 가로 한 장에 들어가도록, 화면 밖에서 크기를 재고 그만큼 축소합니다
+    // 각 달이 A4 가로 한 장에 꽉 차도록, 화면 밖에서 크기를 재고 그만큼 확대·축소합니다
     setTimeout(() => {
-      const el = document.querySelector(".print-area");
-      if(el){
-        el.style.zoom = 1;
-        el.classList.add("measuring");
-        const w = el.scrollWidth, h = el.scrollHeight;
-        el.classList.remove("measuring");
+      const area = document.querySelector(".print-area");
+      if(area){
+        const pages = [...area.querySelectorAll(".print-page")];
+        pages.forEach(pg => { pg.style.zoom = 1; });
+        area.classList.add("measuring");
+        const sizes = pages.map(pg => ({ w: pg.scrollWidth, h: pg.scrollHeight }));
+        area.classList.remove("measuring");
         // A4 가로(297×210mm)에서 여백 8mm를 뺀 인쇄 영역 ≈ 1060×730px, 약간 여유를 둠
-        const zoom = Math.min(1, 1040 / w, 715 / h);
-        el.style.zoom = zoom;
+        pages.forEach((pg, i) => { pg.style.zoom = Math.min(1040 / sizes[i].w, 715 / sizes[i].h, 1.6); });
       }
       window.print();
     }, 300);
@@ -2576,22 +2591,37 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
         <div className="site-multiselect" ref={printMenuRef}>
           <button className="btn btn-ghost btn-sm" onClick={()=>setPrintMenuOpen(o=>!o)}>🖨 인쇄하기 (월별) ▾</button>
           {printMenuOpen && (
-            <div className="site-multiselect-panel" style={{minWidth:170}}>
+            <div className="site-multiselect-panel" style={{minWidth:230, left:"auto", right:0}}>
+              {(() => {
+                const wm = workMonths();
+                return wm.length ? (
+                  <button className="print-menu-item" style={{color:"var(--navy)"}} onClick={()=>{ setPrintMenuOpen(false); startPrint(wm); }}>
+                    공사기간 전체 인쇄 ({wm[0].m+1}월{wm.length>1 ? ` ~ ${wm[wm.length-1].m+1}월` : ""} · {wm.length}장)
+                  </button>
+                ) : null;
+              })()}
               {[cursor, addMonths(cursor,1)].map(m => (
-                <button key={m.y+"-"+m.m} className="print-menu-item" onClick={()=>{ setPrintMenuOpen(false); startPrint(m); }}>
-                  {m.y}년 {m.m+1}월 인쇄
+                <button key={m.y+"-"+m.m} className="print-menu-item" onClick={()=>{ setPrintMenuOpen(false); startPrint([m]); }}>
+                  {m.y}년 {m.m+1}월만 인쇄
                 </button>
               ))}
-              <p className="site-multiselect-empty" style={{fontSize:11, margin:"4px 0 0"}}>그 달에 공사가 있는 현장이 모두 인쇄돼요</p>
+              <p className="site-multiselect-empty" style={{fontSize:11, margin:"4px 0 0"}}>현장 선택에서 고른 현장만, 한 달에 한 장씩 인쇄돼요</p>
             </div>
           )}
         </div>
       </div>
 
-      {printMonth && (
+      {printMonths && (
         <div className="print-area">
-          <h2 className="print-title">공정표 · {printMonth.y}년 {printMonth.m+1}월</h2>
-          {renderCalendarBlock([printMonth], [...sites].sort((a,b) => (a.order??0) - (b.order??0)))}
+          {printMonths.map(pm => (
+            <div className="print-page" key={pm.y+"-"+pm.m}>
+              <h2 className="print-title">
+                공정표 · {pm.y}년 {pm.m+1}월
+                {relevantSites.length<=3 && <span className="print-sub"> · {relevantSites.map(s => s.name).join(", ")}</span>}
+              </h2>
+              {renderCalendarBlock([pm])}
+            </div>
+          ))}
         </div>
       )}
 
