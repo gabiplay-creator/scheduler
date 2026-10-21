@@ -583,6 +583,14 @@ const DEFAULT_TRADES = [
   { id:"grout", name:"메지", color:"#6C2BC9",
     contacts:[{id:"c-grout-1", name:"허연서", phone:"010-3809-3382", bank:"", account:"", isDefault:true}],
     note:"타일 시공 후 도면/주소 주고 날짜 잡음" },
+  { id:"plumbing", name:"배관", color:"#2451B5",
+    contacts:[{id:"c-plumbing-1", name:"", phone:"", bank:"", account:"", isDefault:true}], note:"" },
+  { id:"linoleum", name:"장판", color:"#8A5210",
+    contacts:[{id:"c-linoleum-1", name:"", phone:"", bank:"", account:"", isDefault:true}], note:"" },
+  { id:"finishing", name:"마감", color:"#37424F",
+    contacts:[{id:"c-finishing-1", name:"", phone:"", bank:"", account:"", isDefault:true}], note:"" },
+  { id:"movein", name:"입주", color:"#1D6B5C",
+    contacts:[{id:"c-movein-1", name:"", phone:"", bank:"", account:"", isDefault:true}], note:"" },
   { id:"misc", name:"기타(일당)", color:"#707070",
     contacts:[{id:"c-misc-1", name:"", phone:"", bank:"", account:"", isDefault:true}],
     note:"특정 공정에 속하지 않는 일당 인부 — 그날 여러 잡일을 할 수 있어요" },
@@ -713,11 +721,16 @@ function defaultContactId(trade){
 // 공정 목록을 공사 진행 순서대로 정렬합니다: 철거→샤시→타일→배관→가구→도배→중문→
 // 장판→마감→입주청소→입주. 이 목록에 없는 공정(목공/도기/전기 등 기존 공정, 혹은
 // 새로 추가한 공정)은 그 뒤에 가나다순으로 배치됩니다.
-const TRADE_ORDER_SEQUENCE = ["철거","샤시","샷시","타일","배관","가구","도배","중문","장판","마감","입주청소","입주"];
+const TRADE_ORDER_SEQUENCE = ["철거","샷시","타일","배관","가구","도배","중문","장판","마감","입주청소","입주"];
+// 같은 공정으로 봐야 하는 이름 (띄어쓰기 무시, 샤시=샷시)
+function normTradeName(name){
+  const n = (name||"").replace(/\s+/g, "");
+  return n==="샤시" ? "샷시" : n;
+}
 function sortedTradeList(list){
   return [...list].sort((a,b) => {
-    const ai = TRADE_ORDER_SEQUENCE.indexOf(a.name);
-    const bi = TRADE_ORDER_SEQUENCE.indexOf(b.name);
+    const ai = TRADE_ORDER_SEQUENCE.indexOf(normTradeName(a.name));
+    const bi = TRADE_ORDER_SEQUENCE.indexOf(normTradeName(b.name));
     if(ai!==-1 && bi!==-1) return ai-bi;
     if(ai!==-1) return -1;
     if(bi!==-1) return 1;
@@ -784,6 +797,42 @@ function App(){
     if(missing.length) setTrades(prev => [...prev, ...missing.filter(dt => !prev.some(t=>t.id===dt.id))]);
   }, [trades]);
 
+  // 같은 이름의 공정이 여러 개면 하나로 합칩니다. 지워버리면 다른 사람 화면에서 아직
+  // 그 공정을 가리키는 일정이 사라질 수 있어서, 남는 쪽을 mergedInto로 표시해 두고
+  // 일정은 아래 효과에서 남는 공정으로 옮깁니다. 기본 공정(DEFAULT_TRADES)이 우선 남습니다.
+  useEffect(() => {
+    const active = trades.filter(t => !t.mergedInto);
+    const groups = {};
+    active.forEach(t => { (groups[normTradeName(t.name)] = groups[normTradeName(t.name)] || []).push(t); });
+    const dupGroups = Object.values(groups).filter(g => g.length>1);
+    if(!dupGroups.length) return;
+    const isDefaultId = id => DEFAULT_TRADES.some(d => d.id===id);
+    const isBlank = c => !c.name && !c.phone && !c.bank && !c.account;
+    const plan = {}; // dupId -> keepId
+    const extraContacts = {}; // keepId -> contacts to add
+    dupGroups.forEach(g => {
+      const keep = g.find(t => isDefaultId(t.id)) || g[0];
+      g.filter(t => t.id!==keep.id).forEach(t => {
+        plan[t.id] = keep.id;
+        (extraContacts[keep.id] = extraContacts[keep.id] || []).push(...t.contacts.filter(c => !isBlank(c)));
+      });
+    });
+    setTrades(prev => prev.map(t => {
+      if(plan[t.id]) return { ...t, mergedInto: plan[t.id] };
+      if(extraContacts[t.id]){
+        const add = extraContacts[t.id].filter(c => !t.contacts.some(x => x.name===c.name && x.phone===c.phone)).map(c => ({ ...c, isDefault:false }));
+        return add.length ? { ...t, contacts: [...t.contacts, ...add] } : t;
+      }
+      return t;
+    }));
+  }, [trades]);
+  useEffect(() => {
+    const mergedMap = Object.fromEntries(trades.filter(t => t.mergedInto).map(t => [t.id, t.mergedInto]));
+    if(!schedules.some(sc => mergedMap[sc.tradeId])) return;
+    setSchedules(prev => prev.map(sc => mergedMap[sc.tradeId] ? { ...sc, tradeId: mergedMap[sc.tradeId] } : sc));
+  }, [trades, schedules]);
+  const visibleTrades = useMemo(() => trades.filter(t => !t.mergedInto), [trades]);
+
   // every trade should always have at least one blank spare contact slot ready to
   // fill in — add one to any trade that doesn't have one yet (existing trades included)
   useEffect(() => {
@@ -832,19 +881,19 @@ function App(){
 
       <div className="content">
         {tab==="sites" && (
-          <SitesTab sites={sites} setSites={setSites} trades={trades} schedules={schedules} setSchedules={setSchedules} />
+          <SitesTab sites={sites} setSites={setSites} trades={visibleTrades} schedules={schedules} setSchedules={setSchedules} />
         )}
         {tab==="calendar" && (
-          <CalendarTab sites={sites} trades={trades} setTrades={setTrades} schedules={schedules} setSchedules={setSchedules} dayNotes={dayNotes} setDayNotes={setDayNotes} />
+          <CalendarTab sites={sites} trades={visibleTrades} setTrades={setTrades} schedules={schedules} setSchedules={setSchedules} dayNotes={dayNotes} setDayNotes={setDayNotes} />
         )}
         {tab==="contacts" && (
-          <ContactsTab trades={trades} setTrades={setTrades} schedules={schedules} setSchedules={setSchedules} />
+          <ContactsTab trades={visibleTrades} setTrades={setTrades} schedules={schedules} setSchedules={setSchedules} />
         )}
         {tab==="vendors" && (
           <VendorsTab vendors={vendors} setVendors={setVendors} />
         )}
         {tab==="labor" && (
-          <LaborTab trades={trades} sites={sites} schedules={schedules} dayNotes={dayNotes} />
+          <LaborTab trades={visibleTrades} sites={sites} schedules={schedules} dayNotes={dayNotes} />
         )}
       </div>
 
@@ -1292,7 +1341,7 @@ function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onCl
   const [customName, setCustomName] = useState("");
   const isCustom = tradeId===CUSTOM;
   // 직접 입력한 이름이 이미 있는 공정과 같으면 그 공정으로 연결합니다
-  const matchedTrade = isCustom ? trades.find(t => t.name===customName.trim()) : null;
+  const matchedTrade = isCustom && customName.trim() ? trades.find(t => normTradeName(t.name)===normTradeName(customName)) : null;
   const trade = isCustom ? matchedTrade : trades.find(t => t.id===tradeId);
   const [startDate, setStartDate] = useState(initialDate);
   const [endDate, setEndDate] = useState(initialDate);
@@ -2663,7 +2712,7 @@ function ContactsTab({ trades, setTrades, schedules, setSchedules }){
   }
   function deleteTrade(tradeId, tradeName){
     if(!confirm(`"${tradeName}" 공정을 삭제하면 관련된 일정도 함께 삭제됩니다. 계속할까요?`)) return;
-    setTrades(prev => prev.filter(t => t.id!==tradeId));
+    setTrades(prev => prev.filter(t => t.id!==tradeId && t.mergedInto!==tradeId));
     setSchedules(prev => prev.filter(sc => sc.tradeId!==tradeId));
   }
 
