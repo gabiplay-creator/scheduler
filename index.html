@@ -173,7 +173,7 @@
 
   .field{margin-bottom:14px;}
   .field label{display:block;font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:5px;letter-spacing:.02em;}
-  .field input[type=text],.field input[type=date],.field textarea,.field select{
+  .field input[type=text],.field input[type=date],.field input[type=number],.field textarea,.field select{
     width:100%;padding:9px 11px;border:1px solid var(--paper-line);border-radius:8px;font-size:14px;background:var(--paper);
   }
   .field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--steel);outline-offset:1px;}
@@ -223,9 +223,13 @@
   .contact-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
   .contact-head .trade-swatch{width:12px;height:12px;}
   .contact-head h4{margin:0;font-size:15px;}
+  .trade-combo{display:flex;gap:6px;}
+  .trade-combo input{flex:1;padding:9px 11px;border:1px solid var(--paper-line);border-radius:8px;font-size:14px;background:var(--paper);}
+  .trade-color-pick{width:22px;height:22px;border-radius:6px;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 0 0 1px rgba(0,0,0,.15);flex-shrink:0;}
+  .trade-color-pick input{opacity:0;position:absolute;inset:0;width:100%;height:100%;cursor:pointer;border:none;padding:0;}
   .contact-note{font-size:12px;color:var(--ink-soft);margin:0 0 10px;font-style:italic;}
   .contact-item{
-    display:grid;grid-template-columns:1.2fr 1fr 0.7fr 1.1fr auto;gap:8px;align-items:center;
+    display:grid;grid-template-columns:1.1fr 1fr 0.7fr 1.1fr 0.8fr auto;gap:8px;align-items:center;
     padding:8px 0;border-top:1px solid var(--paper-line);font-size:13px;
   }
   .contact-item:first-of-type{border-top:none;}
@@ -258,13 +262,15 @@
   .site-multiselect-panel{
     position:absolute;top:calc(100% + 6px);left:0;z-index:20;background:var(--card);
     border:1px solid var(--paper-line);border-radius:10px;box-shadow:0 8px 20px rgba(22,35,63,0.15);
-    padding:10px;min-width:220px;max-height:280px;overflow-y:auto;
+    padding:10px;min-width:270px;max-height:320px;overflow-y:auto;
   }
   .site-multiselect-actions{display:flex;gap:6px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--paper-line);}
   .site-multiselect-actions button{
     flex:1;font-size:11.5px;padding:5px 6px;border-radius:6px;border:1px solid var(--paper-line);background:var(--paper);cursor:pointer;color:var(--ink-soft);
   }
   .site-multiselect-actions button:hover{border-color:var(--steel);color:var(--navy);}
+  .site-multiselect-actions button.on{background:var(--navy-deep);color:#fff;border-color:var(--navy-deep);}
+  .site-multiselect-actions button{white-space:nowrap;}
   .site-multiselect-item{
     display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 4px;border-radius:6px;cursor:pointer;
   }
@@ -332,6 +338,7 @@
     background:var(--navy);border:1px solid var(--excel-line-soft);border-radius:0;min-height:34px;padding:0;
     display:flex;align-items:center;cursor:pointer;overflow:hidden;
   }
+  .cal-cell.outside-month{background:#3E5878;}
   .cal-cell.empty-cell{background:#fff;border:1px solid var(--excel-line-soft);cursor:default;}
   .cal-cell.today{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);}
   .cal-cell.picked{border-color:#fff;box-shadow:inset 0 0 0 1.5px #fff;}
@@ -349,7 +356,7 @@
     cursor:pointer;border-radius:0;min-height:38px;box-sizing:border-box;
     border:1px solid var(--excel-line-soft);background:#fff;
   }
-  .trade-slot-empty:hover{background:rgba(226,121,47,0.18);}
+  .trade-slot-empty:hover{filter:brightness(.93);box-shadow:inset 0 0 0 2px var(--accent);}
   .trade-day-chip{
     width:100%;min-height:38px;height:auto;border-radius:0;display:flex;align-items:center;padding:4px 7px;overflow:visible;
     box-shadow:none;box-sizing:border-box;cursor:grab;border:1px solid var(--excel-line-soft);
@@ -363,6 +370,70 @@
   .daypanel{margin-top:16px;}
   .day-sched{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--paper-line);border-radius:10px;margin-bottom:8px;}
   .day-sched .swatch-bar{width:4px;border-radius:3px;align-self:stretch;}
+
+  /* 출력 버튼 줄 */
+  .export-bar{display:flex;gap:8px;justify-content:flex-end;margin:-6px 0 12px;flex-wrap:wrap;}
+  .export-bar .btn-ghost{background:var(--card);}
+  .print-menu-item{display:block;width:100%;text-align:left;background:none;border:none;padding:8px 6px;border-radius:6px;font-size:13px;font-weight:700;color:var(--ink);}
+  .print-menu-item:hover{background:var(--paper);}
+  .print-area{display:none;width:1100px;}
+  .print-area.measuring{display:block;position:absolute;left:-30000px;top:0;}
+  .print-area .cal-month-badge, .print-area .cal-month-rail-spacer{display:none;}
+  .print-area .cal-continuous{border:1px solid var(--excel-line);}
+  .print-title{font-size:20px;margin:0 0 10px;color:#16233F;}
+  .print-sub{font-size:15px;color:#5B5F66;font-weight:700;}
+  .print-page{width:1100px;}
+  .print-page + .print-page{break-before:page;page-break-before:always;}
+  @page{ size: A4 landscape; margin: 8mm; }
+  @media print{
+    body.printing{background:#fff !important;}
+    body.printing *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    body.printing .header, body.printing .no-print, body.printing .footer-note, body.printing .overlay{display:none !important;}
+    body.printing .print-area{display:block;}
+    body.printing .app{width:auto;padding:0;}
+    body.printing .content{padding-top:0;}
+    body.printing .print-page{break-inside:avoid;page-break-inside:avoid;}
+    body.printing{margin:0;}
+    body.printing .cal-month-badge{position:static;}
+  }
+
+  /* 출근 인원 칸 (현장별 맨 아래 줄) */
+  .day-note-cell{border:1px solid var(--excel-line-soft);border-top:1px dashed var(--excel-line-soft);min-height:18px;display:flex;}
+  .day-note-cell{cursor:pointer;align-items:center;}
+  .day-note-cell:hover{box-shadow:inset 0 0 0 1.5px var(--accent);}
+  .day-note-text{font-size:10.5px;line-height:1.25;padding:2px 5px;color:rgba(0,0,0,.22);word-break:keep-all;}
+  .day-note-cell.has-value .day-note-text{color:var(--ink);font-weight:700;}
+  @media print{ .day-note-cell:not(.has-value) .day-note-text{visibility:hidden;} }
+  .worker-row{display:grid;grid-template-columns:1.3fr 1fr 52px auto;gap:8px;align-items:center;margin-bottom:8px;}
+  .worker-row input{padding:9px 11px;border:1px solid var(--paper-line);border-radius:8px;font-size:14px;background:var(--paper);width:100%;}
+  .worker-wage-preview{font-size:12.5px;font-weight:700;color:var(--navy);text-align:center;}
+  .worker-total{margin-top:14px;padding:10px 12px;background:var(--paper);border-radius:8px;font-size:13.5px;display:flex;justify-content:space-between;}
+  .payroll-row{display:grid;grid-template-columns:1fr auto 130px;gap:12px;padding:7px 2px;border-top:1px solid var(--paper-line);font-size:13.5px;align-items:center;}
+  .payroll-days{color:var(--ink-soft);font-size:12.5px;}
+  .payroll-amount{font-family:var(--mono);font-weight:800;color:var(--navy);text-align:right;}
+  .day-note-cell input{
+    width:100%;border:none;background:transparent;font-size:10px;line-height:1.2;padding:2px 5px;color:var(--ink);font-family:var(--sans);
+  }
+  .day-note-cell input::placeholder{color:rgba(0,0,0,.22);}
+  .day-note-cell input:focus{outline:1.5px solid var(--accent);outline-offset:-1.5px;background:rgba(255,255,255,.6);}
+  @media print{ .day-note-cell input::placeholder{color:transparent;} }
+  .drop-target{box-shadow:inset 0 0 0 2px var(--accent) !important;}
+
+  /* 공정 클릭 정보창 */
+  .info-contact{
+    display:flex;justify-content:space-between;align-items:flex-end;gap:12px;
+    padding:14px 16px;border:1px solid var(--paper-line);border-radius:10px;background:var(--paper);margin-bottom:10px;
+  }
+  .info-label{font-size:11.5px;font-weight:700;color:var(--ink-soft);letter-spacing:.02em;}
+  .info-contact-name{font-size:17px;font-weight:800;margin-top:3px;}
+  .info-phone{font-size:18px;font-weight:800;color:var(--navy);text-decoration:none;font-family:var(--mono);display:inline-block;margin-top:3px;}
+  .info-phone:hover{color:var(--accent);}
+  .info-sub{font-size:12.5px;font-weight:600;color:var(--ink-soft);}
+  .info-box{border:1px solid var(--paper-line);border-radius:10px;padding:6px 16px;}
+  .info-row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--paper-line);font-size:13.5px;}
+  .info-row:first-child{border-top:none;}
+  .info-value{text-align:right;}
+  .info-value.strong{font-weight:800;color:var(--navy);}
 
   .footer-note{margin-top:40px;font-size:12px;color:var(--ink-soft);text-align:center;font-family:var(--mono);}
 
@@ -522,6 +593,14 @@ const DEFAULT_TRADES = [
   { id:"grout", name:"메지", color:"#6C2BC9",
     contacts:[{id:"c-grout-1", name:"허연서", phone:"010-3809-3382", bank:"", account:"", isDefault:true}],
     note:"타일 시공 후 도면/주소 주고 날짜 잡음" },
+  { id:"plumbing", name:"배관", color:"#2451B5",
+    contacts:[{id:"c-plumbing-1", name:"", phone:"", bank:"", account:"", isDefault:true}], note:"" },
+  { id:"linoleum", name:"장판", color:"#8A5210",
+    contacts:[{id:"c-linoleum-1", name:"", phone:"", bank:"", account:"", isDefault:true}], note:"" },
+  { id:"finishing", name:"마감", color:"#37424F",
+    contacts:[{id:"c-finishing-1", name:"", phone:"", bank:"", account:"", isDefault:true}], note:"" },
+  { id:"movein", name:"입주", color:"#1D6B5C",
+    contacts:[{id:"c-movein-1", name:"", phone:"", bank:"", account:"", isDefault:true}], note:"" },
   { id:"misc", name:"기타(일당)", color:"#707070",
     contacts:[{id:"c-misc-1", name:"", phone:"", bank:"", account:"", isDefault:true}],
     note:"특정 공정에 속하지 않는 일당 인부 — 그날 여러 잡일을 할 수 있어요" },
@@ -568,6 +647,18 @@ const KR_HOLIDAYS_2026 = {
 function krHoliday(dateStr){ return KR_HOLIDAYS_2026[dateStr] || null; }
 
 // a curated set of clearly distinguishable colors for the site color picker
+// 캘린더에서 현장 칸 전체에 깔리는 배경색. 이웃한 현장끼리 색상이 확 달라 보이도록
+// 보색에 가까운 순서로 배치한 파스텔톤입니다 (복숭아↔하늘, 레몬↔라벤더, 민트↔핑크 …).
+const SITE_BG_PASTELS = [
+  "#FFD9C7","#CFE3FF","#FFF0B3","#E4D7FF","#CDEFD8","#FFD3E2","#D3F1F4","#F3E0C9",
+];
+// 공정이 들어간 칸은 같은 현장 색에서 살짝만 진하게 해서 빈칸과 구분합니다.
+function deepenColor(hex, amount=0.1){
+  if(!hex || hex[0]!=="#" || hex.length!==7) return hex;
+  const f = v => Math.round(parseInt(v,16)*(1-amount)).toString(16).padStart(2,"0");
+  return "#" + f(hex.slice(1,3)) + f(hex.slice(3,5)) + f(hex.slice(5,7));
+}
+
 const SITE_COLOR_SWATCHES = [
   "#16233F","#B23A48","#1B7A4B","#C9701A","#5B2C87","#0E7A8C","#8C1D40","#3F5EA8",
   "#A0522D","#2E7D6B","#C0392B","#6C3483","#117864","#B7950B","#943126","#1F618D",
@@ -593,12 +684,21 @@ function daySpan(sc){
 }
 // Lightens/desaturates a stored trade color for a softer, pastel calendar chip
 // background, without needing to touch the trade's own saved color value.
-function pastelizeColor(hex){
+function pastelizeColor(hex, amount=0.6){
   if(!hex || hex[0]!=="#" || hex.length!==7) return hex;
   const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
-  const mix = v => Math.round(v + (255-v)*0.6);
+  const mix = v => Math.round(v + (255-v)*amount);
   const toHex = v => v.toString(16).padStart(2,"0");
   return `#${toHex(mix(r))}${toHex(mix(g))}${toHex(mix(b))}`;
+}
+// 공정 글자색: 공정별 담당자 탭의 공정 색을 쓰되, 파스텔 배경 위에서 잘 읽히도록 살짝 진하게
+// (밝은 색은 파스텔 배경 위에서도 읽히는 밝기까지 자동으로 더 진하게 합니다)
+function tradeTextColor(hex){
+  if(!hex || hex[0]!=="#" || hex.length!==7) return "#1a1a1a";
+  const lum = h => { const c = [1,3,5].map(i => parseInt(h.slice(i,i+2),16)/255).map(v => v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4)); return 0.2126*c[0]+0.7152*c[1]+0.0722*c[2]; };
+  let c = deepenColor(hex, 0.12);
+  for(let i=0; i<12 && lum(c) > 0.11; i++) c = deepenColor(c, 0.08);
+  return c;
 }
 function shiftDateStr(dateStr, deltaDays){
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -640,11 +740,16 @@ function defaultContactId(trade){
 // 공정 목록을 공사 진행 순서대로 정렬합니다: 철거→샤시→타일→배관→가구→도배→중문→
 // 장판→마감→입주청소→입주. 이 목록에 없는 공정(목공/도기/전기 등 기존 공정, 혹은
 // 새로 추가한 공정)은 그 뒤에 가나다순으로 배치됩니다.
-const TRADE_ORDER_SEQUENCE = ["철거","샤시","샷시","타일","배관","가구","도배","중문","장판","마감","입주청소","입주"];
+const TRADE_ORDER_SEQUENCE = ["철거","샷시","타일","배관","가구","도배","중문","장판","마감","입주청소","입주"];
+// 같은 공정으로 봐야 하는 이름 (띄어쓰기 무시, 샤시=샷시)
+function normTradeName(name){
+  const n = (name||"").replace(/\s+/g, "");
+  return n==="샤시" ? "샷시" : n;
+}
 function sortedTradeList(list){
   return [...list].sort((a,b) => {
-    const ai = TRADE_ORDER_SEQUENCE.indexOf(a.name);
-    const bi = TRADE_ORDER_SEQUENCE.indexOf(b.name);
+    const ai = TRADE_ORDER_SEQUENCE.indexOf(normTradeName(a.name));
+    const bi = TRADE_ORDER_SEQUENCE.indexOf(normTradeName(b.name));
     if(ai!==-1 && bi!==-1) return ai-bi;
     if(ai!==-1) return -1;
     if(bi!==-1) return 1;
@@ -697,6 +802,8 @@ function App(){
   const [sites, setSites] = useSyncedState("sites", []);
   const [schedules, setSchedules] = useSyncedState("schedules", []);
   const [vendors, setVendors] = useSyncedState("vendors", DEFAULT_VENDORS);
+  // 현장별·날짜별 출근 인원 메모 (캘린더 각 현장 맨 아래 칸)
+  const [dayNotes, setDayNotes] = useSyncedState("dayNotes", []);
   const [synced, setSynced] = useState(false);
 
   useEffect(() => { setSynced(fbReady()); }, []);
@@ -708,6 +815,42 @@ function App(){
     const missing = DEFAULT_TRADES.filter(dt => !trades.some(t => t.id===dt.id));
     if(missing.length) setTrades(prev => [...prev, ...missing.filter(dt => !prev.some(t=>t.id===dt.id))]);
   }, [trades]);
+
+  // 같은 이름의 공정이 여러 개면 하나로 합칩니다. 지워버리면 다른 사람 화면에서 아직
+  // 그 공정을 가리키는 일정이 사라질 수 있어서, 남는 쪽을 mergedInto로 표시해 두고
+  // 일정은 아래 효과에서 남는 공정으로 옮깁니다. 기본 공정(DEFAULT_TRADES)이 우선 남습니다.
+  useEffect(() => {
+    const active = trades.filter(t => !t.mergedInto);
+    const groups = {};
+    active.forEach(t => { (groups[normTradeName(t.name)] = groups[normTradeName(t.name)] || []).push(t); });
+    const dupGroups = Object.values(groups).filter(g => g.length>1);
+    if(!dupGroups.length) return;
+    const isDefaultId = id => DEFAULT_TRADES.some(d => d.id===id);
+    const isBlank = c => !c.name && !c.phone && !c.bank && !c.account;
+    const plan = {}; // dupId -> keepId
+    const extraContacts = {}; // keepId -> contacts to add
+    dupGroups.forEach(g => {
+      const keep = g.find(t => isDefaultId(t.id)) || g[0];
+      g.filter(t => t.id!==keep.id).forEach(t => {
+        plan[t.id] = keep.id;
+        (extraContacts[keep.id] = extraContacts[keep.id] || []).push(...t.contacts.filter(c => !isBlank(c)));
+      });
+    });
+    setTrades(prev => prev.map(t => {
+      if(plan[t.id]) return { ...t, mergedInto: plan[t.id] };
+      if(extraContacts[t.id]){
+        const add = extraContacts[t.id].filter(c => !t.contacts.some(x => x.name===c.name && x.phone===c.phone)).map(c => ({ ...c, isDefault:false }));
+        return add.length ? { ...t, contacts: [...t.contacts, ...add] } : t;
+      }
+      return t;
+    }));
+  }, [trades]);
+  useEffect(() => {
+    const mergedMap = Object.fromEntries(trades.filter(t => t.mergedInto).map(t => [t.id, t.mergedInto]));
+    if(!schedules.some(sc => mergedMap[sc.tradeId])) return;
+    setSchedules(prev => prev.map(sc => mergedMap[sc.tradeId] ? { ...sc, tradeId: mergedMap[sc.tradeId] } : sc));
+  }, [trades, schedules]);
+  const visibleTrades = useMemo(() => trades.filter(t => !t.mergedInto), [trades]);
 
   // every trade should always have at least one blank spare contact slot ready to
   // fill in — add one to any trade that doesn't have one yet (existing trades included)
@@ -757,19 +900,19 @@ function App(){
 
       <div className="content">
         {tab==="sites" && (
-          <SitesTab sites={sites} setSites={setSites} trades={trades} schedules={schedules} setSchedules={setSchedules} />
+          <SitesTab sites={sites} setSites={setSites} trades={visibleTrades} schedules={schedules} setSchedules={setSchedules} />
         )}
         {tab==="calendar" && (
-          <CalendarTab sites={sites} trades={trades} schedules={schedules} setSchedules={setSchedules} />
+          <CalendarTab sites={sites} trades={visibleTrades} setTrades={setTrades} schedules={schedules} setSchedules={setSchedules} dayNotes={dayNotes} setDayNotes={setDayNotes} />
         )}
         {tab==="contacts" && (
-          <ContactsTab trades={trades} setTrades={setTrades} schedules={schedules} setSchedules={setSchedules} />
+          <ContactsTab trades={visibleTrades} setTrades={setTrades} schedules={schedules} setSchedules={setSchedules} />
         )}
         {tab==="vendors" && (
           <VendorsTab vendors={vendors} setVendors={setVendors} />
         )}
         {tab==="labor" && (
-          <LaborTab trades={trades} sites={sites} schedules={schedules} />
+          <LaborTab trades={visibleTrades} sites={sites} schedules={schedules} dayNotes={dayNotes} />
         )}
       </div>
 
@@ -904,6 +1047,7 @@ function SiteFormModal({ onClose, onSave, initial }){
   const [abbreviation, setAbbreviation] = useState(initial?.abbreviation || "");
   const [manager, setManager] = useState(initial?.manager || "");
   const [color, setColor] = useState(initial?.color || "");
+  const [bgColor, setBgColor] = useState(initial?.bgColor || "");
   const [address, setAddress] = useState(initial?.address || "");
   const [memo, setMemo] = useState(initial?.memo || "");
   const [floorPlan, setFloorPlan] = useState(initial?.floorPlan || null);
@@ -934,7 +1078,7 @@ function SiteFormModal({ onClose, onSave, initial }){
     if(!name.trim() || !address.trim()){ alert("현장명과 주소는 필수입니다."); return; }
     if(projectStart && projectEnd && projectEnd < projectStart){ alert("전체 공사 종료일이 시작일보다 빠를 수 없습니다."); return; }
     onSave({
-      name: name.trim(), abbreviation: abbreviation.trim(), manager: manager.trim(), color, address: address.trim(), memo: memo.trim(), floorPlan, estimate,
+      name: name.trim(), abbreviation: abbreviation.trim(), manager: manager.trim(), color, bgColor, address: address.trim(), memo: memo.trim(), floorPlan, estimate,
       officeName: officeName.trim(), officePhone: officePhone.trim(),
       projectStart, projectEnd,
     });
@@ -965,7 +1109,24 @@ function SiteFormModal({ onClose, onSave, initial }){
         </div>
 
         <div className="field">
-          <label>현장 색상 (캘린더·담당자 일정표에 사용)</label>
+          <label>캘린더 배경색 (현장 칸 전체에 깔리는 파스텔색 · 비워두면 자동)</label>
+          <div className="color-swatch-row">
+            {SITE_BG_PASTELS.map(c => (
+              <button
+                type="button"
+                key={c}
+                className={"color-swatch" + (bgColor===c ? " selected" : "")}
+                style={{background:c}}
+                onClick={()=>setBgColor(c)}
+                title={c}
+              />
+            ))}
+            {bgColor && <button type="button" className="btn btn-ghost btn-sm" onClick={()=>setBgColor("")}>자동으로</button>}
+          </div>
+        </div>
+
+        <div className="field">
+          <label>현장 글자색 (캘린더 왼쪽 현장명에 사용)</label>
           <div className="color-swatch-row">
             {SITE_COLOR_SWATCHES.map(c => (
               <button
@@ -1191,86 +1352,67 @@ function DayWorkersModal({ site, date, trades, onClose, onSave }){
 }
 
 function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onClose, onAdd }){
+  // 빈칸을 눌러 여는 간단 추가창: 공정 + 메모만 받습니다.
+  // 날짜는 누른 칸의 하루로 들어가고, 담당자는 공정의 기본 담당자로 연결됩니다.
+  // 기간·작업자·품수가 필요하면 추가한 뒤 공정을 눌러 수정창에서 넣으면 됩니다.
   const orderedTrades = useMemo(()=>sortedTradeList(trades), [trades]);
   const [siteId, setSiteId] = useState(initialSiteId || sites[0]?.id || "");
   const site = sites.find(s => s.id===siteId);
-  const [tradeId, setTradeId] = useState(orderedTrades[0]?.id || "");
-  const trade = trades.find(t => t.id===tradeId);
-  const [startDate, setStartDate] = useState(initialDate);
-  const [endDate, setEndDate] = useState(initialDate);
-  const [contactId, setContactId] = useState(defaultContactId(trade));
-  const [workerName, setWorkerName] = useState("");
-  const [laborUnits, setLaborUnits] = useState("");
+  const CUSTOM = "__custom__";
+  const [tradeId, setTradeId] = useState(CUSTOM); // 기본은 "직접 입력"
+  const [customName, setCustomName] = useState("");
+  const isCustom = tradeId===CUSTOM;
+  // 직접 입력한 이름이 이미 있는 공정과 같으면 그 공정으로 연결합니다
+  const matchedTrade = isCustom && customName.trim() ? trades.find(t => normTradeName(t.name)===normTradeName(customName)) : null;
   const [memo, setMemo] = useState("");
 
-  function handleTradeChange(id){
-    setTradeId(id);
-    const t = trades.find(x => x.id===id);
-    setContactId(defaultContactId(t));
-  }
-  function handleStartChange(v){
-    setStartDate(v);
-    if(endDate < v) setEndDate(v);
-  }
   function submit(){
     if(!siteId){ alert("현장을 선택해주세요."); return; }
-    if(!tradeId){ alert("공정을 선택해주세요."); return; }
-    if(!startDate || !endDate){ alert("시작일과 종료일을 입력해주세요."); return; }
-    onAdd(siteId, { tradeId, startDate, endDate: endDate<startDate ? startDate : endDate, contactId, workerName: workerName.trim(), laborUnits: laborUnits==="" ? null : Number(laborUnits), memo });
+    if(isCustom && !customName.trim()){ alert("공정명을 입력하거나 목록에서 골라주세요."); return; }
+    const trade = isCustom ? matchedTrade : trades.find(t => t.id===tradeId);
+    onAdd(siteId, {
+      tradeId: trade?.id || null, contactId: defaultContactId(trade),
+      startDate: initialDate, endDate: initialDate, workerName: "", laborUnits: null, memo: memo.trim(),
+    }, isCustom && !matchedTrade ? customName.trim() : null);
   }
+  const onEnter = e => { if(e.key==="Enter") submit(); };
 
   return (
     <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
-      <div className="modal">
+      <div className="modal" style={{maxWidth:460}}>
         <div className="modal-head">
           <div>
-            <p className="eyebrow">ADD SCHEDULE</p>
+            <p className="eyebrow">ADD SCHEDULE · {initialDate}</p>
             <h3>{initialSiteId ? site?.name : "일정 추가"}</h3>
           </div>
           <button className="close-x" onClick={onClose}>✕</button>
         </div>
 
-        <div className="row2">
-          {!initialSiteId && (
-            <div className="field" style={{gridColumn:"1 / -1"}}>
-              <label>현장</label>
-              <select value={siteId} onChange={e=>setSiteId(e.target.value)}>
-                {sites.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-          )}
+        {!initialSiteId && (
           <div className="field">
-            <label>공정</label>
-            <select value={tradeId} onChange={e=>handleTradeChange(e.target.value)}>
+            <label>현장</label>
+            <select value={siteId} onChange={e=>setSiteId(e.target.value)}>
+              {sites.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+        )}
+        <div className="field">
+          <label>공정{isCustom && customName.trim() && (matchedTrade ? " · 기존 공정과 연결" : " · 새 공정으로 추가")}</label>
+          {isCustom ? (
+            <div className="trade-combo">
+              <input type="text" autoFocus value={customName} onChange={e=>setCustomName(e.target.value)} onKeyDown={onEnter} placeholder="공정명 입력 (예: 방수, 양중, 발주)" />
+              <button type="button" className="btn btn-ghost btn-sm" onClick={()=>setTradeId(orderedTrades[0]?.id || CUSTOM)} title="목록에서 고르기">목록 ▾</button>
+            </div>
+          ) : (
+            <select value={tradeId} autoFocus onChange={e=>setTradeId(e.target.value)}>
+              <option value={CUSTOM}>✏️ 직접 입력</option>
               {orderedTrades.map(t => <option value={t.id} key={t.id}>{t.name}</option>)}
             </select>
-          </div>
-          <div className="field">
-            <label>담당자 (연락용 거래처)</label>
-            <select value={contactId} onChange={e=>setContactId(e.target.value)}>
-              {trade?.contacts.map(c => <option value={c.id} key={c.id}>{c.name || "(이름 미입력)"}{c.isDefault ? " (기본)" : ""}</option>)}
-            </select>
-          </div>
-          <div className="field">
-            <label>작업자명 (직접 입력)</label>
-            <input type="text" value={workerName} onChange={e=>setWorkerName(e.target.value)} placeholder="예: 김철수" />
-          </div>
-          <div className="field">
-            <label>시작일</label>
-            <input type="date" value={startDate} onChange={e=>handleStartChange(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>종료일 (총 기간)</label>
-            <input type="date" value={endDate} min={startDate} onChange={e=>setEndDate(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>품수 (0.5 단위)</label>
-            <input type="number" step="0.5" min="0" value={laborUnits} onChange={e=>setLaborUnits(e.target.value)} placeholder="예: 1.5" />
-          </div>
-          <div className="field" style={{gridColumn:"1 / -1"}}>
-            <label>메모</label>
-            <input type="text" value={memo} onChange={e=>setMemo(e.target.value)} placeholder="예: 자재 주문, 실측 방문 등" />
-          </div>
+          )}
+        </div>
+        <div className="field">
+          <label>메모 (공정 옆 괄호에 표시)</label>
+          <input type="text" value={memo} onChange={e=>setMemo(e.target.value)} onKeyDown={onEnter} placeholder="예: 1, 오전, 화장실" />
         </div>
 
         <div className="modal-footer">
@@ -1282,13 +1424,295 @@ function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onCl
   );
 }
 
+// 일당: 일정에 따로 입력한 값이 있으면 그 값을, 없으면 담당자에 등록된 기본 일당을 씁니다.
+function effectiveDailyWage(sc, contact){
+  if(sc.dailyWage!=null && sc.dailyWage!=="") return Number(sc.dailyWage);
+  if(contact && contact.dailyWage!=null && contact.dailyWage!=="") return Number(contact.dailyWage);
+  return null;
+}
+// 품수를 입력하지 않았으면 작업 일수만큼(하루 1품) 나온 것으로 계산합니다.
+function effectiveUnits(sc){
+  return sc.laborUnits!=null ? Number(sc.laborUnits) : daySpan(sc);
+}
+const won = n => n==null ? "-" : Math.round(n).toLocaleString("ko-KR") + "원";
+
+// 일정에 담당자를 따로 고르지 않았거나 빈 담당자가 선택돼 있으면,
+// "공정별 담당자" 탭에서 기본으로 지정한 담당자를 대신 보여줍니다.
+function resolveContact(sc, trade){
+  if(!trade) return null;
+  const isBlank = c => !c.name && !c.phone && !c.bank && !c.account;
+  const picked = trade.contacts.find(c => c.id===sc.contactId);
+  if(picked && !isBlank(picked)) return picked;
+  return trade.contacts.find(c => c.isDefault && !isBlank(c)) || trade.contacts.find(c => !isBlank(c)) || null;
+}
+
+// 캘린더 각 현장 맨 아래의 "그날 출근 인원" 칸. 입력을 마치고 칸을 벗어나거나
+// Enter를 누르면 저장됩니다 (글자마다 저장하지 않아 여러 명이 동시에 써도 덜 엉킵니다).
+/* ---------- 손님용 JPG: 현장 하나의 공사기간을 달력 모양으로 그려서 저장 ---------- */
+// 공정 이름만 들어가고, 메모·출근 인원·담당자·금액은 넣지 않습니다.
+function drawCustomerCalendar({ site, schedules, tradeById, bg }){
+  const siteSchedules = schedules.filter(sc => sc.siteId===site.id && sc.tradeId!=="misc" && tradeById[sc.tradeId]);
+  // 표시할 기간: 현장 전체 공사기간 → 없으면 일정의 처음~끝 → 없으면 이번 달
+  // 머리말의 공사기간은 등록된 전체 공사기간을 쓰고, 달력은 실제 공정이 있는 달만 그립니다
+  let start = site.projectStart, end = site.projectEnd;
+  const ranges = siteSchedules.map(scheduleRange);
+  const schStart = ranges.length ? ranges.reduce((a,r)=>r.start<a?r.start:a, ranges[0].start) : null;
+  const schEnd = ranges.length ? ranges.reduce((a,r)=>r.end>a?r.end:a, ranges[0].end) : null;
+  if(!start || !end){ start = schStart || todayStr(); end = schEnd || start; }
+  const calStart = schStart || start, calEnd = schEnd || end;
+  const months = [];
+  let [y, m] = calStart.split("-").map(Number); m -= 1;
+  const [ey, em] = calEnd.split("-").map(Number);
+  while((y < ey || (y===ey && m <= em-1)) && months.length < 6){ months.push({y, m}); m++; if(m>11){ m=0; y++; } }
+  if(!months.length) months.push({y, m});
+
+  const tradesOn = date => {
+    const names = [];
+    names.colors = {};
+    siteSchedules.forEach(sc => { const r = scheduleRange(sc); if(date>=r.start && date<=r.end){ const n = tradeById[sc.tradeId].name; if(!names.includes(n)){ names.push(n); names.colors[n] = tradeById[sc.tradeId].color; } } });
+    return names;
+  };
+
+  const W = 1400, PAD = 48, COLW = (W - PAD*2) / 7, DOWH = 40, PILLH = 30;
+  const FONT = '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif';
+  // 높이 계산을 먼저 해서 캔버스 크기를 정합니다
+  const monthLayouts = months.map(({y, m}) => {
+    const firstDow = new Date(y, m, 1).getDay(), dim = new Date(y, m+1, 0).getDate();
+    const cells = [...Array(firstDow).fill(null), ...Array.from({length: dim}, (_, i) => i+1)];
+    while(cells.length % 7) cells.push(null);
+    const weeks = [];
+    for(let i=0;i<cells.length;i+=7){
+      const days = cells.slice(i, i+7).map(d => d ? { d, date: `${y}-${pad(m+1)}-${pad(d)}` } : null);
+      const maxItems = Math.max(0, ...days.map(x => x ? tradesOn(x.date).length : 0));
+      weeks.push({ days, h: Math.max(96, 40 + maxItems*(PILLH+6) + 8) });
+    }
+    return { y, m, weeks, h: 64 + DOWH + weeks.reduce((a,w)=>a+w.h, 0) + 36 };
+  });
+  const HEADER = 150;
+  const H = HEADER + monthLayouts.reduce((a,l)=>a+l.h, 0) + 30;
+  const scale = 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = W*scale; canvas.height = H*scale;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, W, H);
+
+  // 머리말
+  ctx.fillStyle = "#16233F"; ctx.fillRect(0, 0, W, 10);
+  ctx.fillStyle = "#16233F"; ctx.font = `800 38px ${FONT}`; ctx.textBaseline = "alphabetic";
+  ctx.fillText(`${site.name} 공사 일정표`, PAD, 72);
+  ctx.fillStyle = "#5B5F66"; ctx.font = `600 20px ${FONT}`;
+  ctx.fillText(`공사기간  ${start} ~ ${end}`, PAD, 110);
+  ctx.strokeStyle = "#E1D9C4"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(PAD, 132); ctx.lineTo(W-PAD, 132); ctx.stroke();
+
+  const pillBg = bg || "#CFE3FF";
+  const pillDeep = deepenColor(pillBg, 0.12);
+  let yCur = HEADER;
+  monthLayouts.forEach(layout => {
+    ctx.fillStyle = "#16233F"; ctx.font = `800 28px ${FONT}`;
+    ctx.fillText(`${layout.y}년 ${layout.m+1}월`, PAD, yCur + 42);
+    let yy = yCur + 64;
+    // 요일 줄
+    DOW.forEach((dw, i) => {
+      const x = PAD + i*COLW;
+      ctx.fillStyle = "#1E3A5F"; ctx.fillRect(x, yy, COLW, DOWH);
+      ctx.fillStyle = i===0 ? "#FF9A92" : i===6 ? "#9ADCFF" : "#ffffff";
+      ctx.font = `700 17px ${FONT}`; ctx.textAlign = "center";
+      ctx.fillText(dw, x + COLW/2, yy + 26);
+      ctx.textAlign = "left";
+    });
+    yy += DOWH;
+    layout.weeks.forEach(week => {
+      week.days.forEach((cell, i) => {
+        const x = PAD + i*COLW;
+        ctx.fillStyle = cell ? "#ffffff" : "#F4F4F2"; ctx.fillRect(x, yy, COLW, week.h);
+        ctx.strokeStyle = "#C9CDD2"; ctx.lineWidth = 1; ctx.strokeRect(x+0.5, yy+0.5, COLW, week.h);
+        if(!cell) return;
+        const hol = krHoliday(cell.date);
+        ctx.fillStyle = (i===0 || hol) ? "#D9483B" : i===6 ? "#2A78C2" : "#23262B";
+        ctx.font = `800 18px ${FONT}`;
+        ctx.fillText(String(cell.d), x + 10, yy + 26);
+        if(hol){ ctx.font = `600 13px ${FONT}`; ctx.fillText(hol, x + 40, yy + 25); }
+        const dayTrades = tradesOn(cell.date);
+        dayTrades.forEach((name, k) => {
+          const py = yy + 38 + k*(PILLH+6), px = x + 7, pw = COLW - 14;
+          ctx.fillStyle = pillBg;
+          ctx.beginPath();
+          if(ctx.roundRect) ctx.roundRect(px, py, pw, PILLH, 6); else ctx.rect(px, py, pw, PILLH);
+          ctx.fill();
+          ctx.fillStyle = pillDeep; ctx.fillRect(px, py, 4, PILLH);
+          ctx.fillStyle = tradeTextColor(dayTrades.colors[name]); ctx.font = `800 17px ${FONT}`;
+          let label = name;
+          while(ctx.measureText(label).width > pw - 20 && label.length > 1) label = label.slice(0, -1);
+          if(label!==name) label = label.slice(0, -1) + "…";
+          ctx.fillText(label, px + 12, py + 21);
+        });
+      });
+      yy += week.h;
+    });
+    yCur += layout.h;
+  });
+  return canvas;
+}
+
+function CustomerJpgModal({ sites, defaultSiteId, schedules, tradeById, siteBgMap, onClose }){
+  const sorted = [...sites].sort((a,b) => {
+    const ae = isSiteEnded(a), be = isSiteEnded(b);
+    if(ae!==be) return ae ? 1 : -1;
+    return (a.order??0) - (b.order??0);
+  });
+  const [siteId, setSiteId] = useState(defaultSiteId || sorted[0]?.id || "");
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const site = sites.find(s => s.id===siteId);
+
+  useEffect(() => {
+    if(!site){ setPreviewUrl(null); return; }
+    const canvas = drawCustomerCalendar({ site, schedules, tradeById, bg: siteBgMap[site.id] });
+    setPreviewUrl(canvas.toDataURL("image/jpeg", 0.92));
+  }, [siteId, schedules]);
+
+  function download(){
+    if(!previewUrl) return;
+    const a = document.createElement("a");
+    a.href = previewUrl;
+    a.download = `${site.name}_공사일정.jpg`;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
+      <div className="modal" style={{maxWidth:760}}>
+        <div className="modal-head">
+          <div>
+            <p className="eyebrow">CUSTOMER JPG</p>
+            <h3>손님용 공사 일정 이미지</h3>
+          </div>
+          <button className="close-x" onClick={onClose}>✕</button>
+        </div>
+        <div className="field">
+          <label>현장 선택 (공정 이름만 들어가요 · 메모·인원·담당자는 빠져요)</label>
+          <select value={siteId} onChange={e=>setSiteId(e.target.value)}>
+            {sorted.map(s => <option key={s.id} value={s.id}>{s.name}{isSiteEnded(s) ? " (종료)" : ""}</option>)}
+          </select>
+        </div>
+        {previewUrl && (
+          <div style={{maxHeight:"55vh", overflow:"auto", border:"1px solid var(--paper-line)", borderRadius:8}}>
+            <img src={previewUrl} style={{width:"100%", display:"block"}} />
+          </div>
+        )}
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>닫기</button>
+          <button className="btn btn-primary" onClick={download} disabled={!previewUrl}>JPG 저장</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 출근 인원: dayNotes 문서 하나 = 현장 하나의 하루. workers: [{name, wage}]
+// 예전에 칸에 직접 써둔 글(text)은 이름이 없으면 그대로 보여줍니다.
+function formatWageShort(w){
+  if(w==null || w==="" || isNaN(Number(w))) return "";
+  const n = Number(w);
+  if(n>=10000 && n%1000===0){ const man = n/10000; return (Number.isInteger(man) ? man : man.toFixed(1).replace(/\.0$/,"")) + "만"; }
+  return n.toLocaleString("ko-KR");
+}
+function formatWorkers(note){
+  if(!note) return "";
+  const ws = (note.workers||[]).filter(x => x.name);
+  if(ws.length) return ws.map(x => x.name + (formatWageShort(x.wage) ? `(${formatWageShort(x.wage)})` : "")).join(", ");
+  return note.text || "";
+}
+
+function DayWorkerCell({ note, onClick, style }){
+  const label = formatWorkers(note);
+  return (
+    <div className={"day-note-cell" + (label ? " has-value" : "")} style={style} onClick={onClick} title="클릭해서 그날 출근한 사람·일당 입력">
+      <span className="day-note-text">{label || "인원"}</span>
+    </div>
+  );
+}
+
+function DayWorkersEditModal({ site, date, note, nameSuggestions, lastWageByName, onClose, onSave }){
+  const initial = (note?.workers||[]).length ? note.workers.map(x => ({ name: x.name||"", wage: x.wage!=null ? String(x.wage) : "" })) : [{ name:"", wage:"" }];
+  const [rows, setRows] = useState(initial);
+  const [legacyText, setLegacyText] = useState(note?.text || "");
+  const update = (i, patch) => setRows(prev => prev.map((r, k) => k===i ? { ...r, ...patch } : r));
+  function changeName(i, name){
+    const known = lastWageByName[name.trim()];
+    setRows(prev => prev.map((r, k) => k!==i ? r : { ...r, name, wage: (r.wage==="" && known!=null) ? String(known) : r.wage }));
+  }
+  const total = rows.reduce((sum, r) => sum + (r.name.trim() && r.wage!=="" ? Number(r.wage) : 0), 0);
+  function submit(){
+    const workers = rows.filter(r => r.name.trim()).map(r => ({ name: r.name.trim(), wage: r.wage==="" ? null : Number(r.wage) }));
+    onSave(workers, legacyText.trim());
+    onClose();
+  }
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
+      <div className="modal" style={{maxWidth:520}}>
+        <div className="modal-head">
+          <div>
+            <p className="eyebrow">WORKERS · 출근 인원</p>
+            <h3>{site.name} · {date}</h3>
+          </div>
+          <button className="close-x" onClick={onClose}>✕</button>
+        </div>
+        <datalist id="worker-name-list">{nameSuggestions.map(n => <option key={n} value={n} />)}</datalist>
+        {rows.map((r, i) => (
+          <div className="worker-row" key={i}>
+            <input type="text" list="worker-name-list" value={r.name} autoFocus={i===rows.length-1 && !r.name} placeholder="이름 (예: 이동준)" onChange={e=>changeName(i, e.target.value)} />
+            <input type="number" min="0" step="10000" value={r.wage} placeholder="일당(원)" onChange={e=>update(i, { wage: e.target.value })} onKeyDown={e=>{ if(e.key==="Enter") setRows(prev => [...prev, { name:"", wage:"" }]); }} />
+            <span className="worker-wage-preview">{formatWageShort(r.wage) || "-"}</span>
+            <button className="btn btn-danger btn-sm" onClick={()=>setRows(prev => prev.length>1 ? prev.filter((_, k) => k!==i) : [{ name:"", wage:"" }])}>✕</button>
+          </div>
+        ))}
+        <button className="btn btn-ghost btn-sm" style={{marginTop:4}} onClick={()=>setRows(prev => [...prev, { name:"", wage:"" }])}>+ 사람 추가</button>
+        {legacyText && (
+          <div className="field" style={{marginTop:14}}>
+            <label>예전에 칸에 적어둔 메모</label>
+            <input type="text" value={legacyText} onChange={e=>setLegacyText(e.target.value)} />
+          </div>
+        )}
+        <div className="worker-total">이날 인건비 합계 <b>{total.toLocaleString("ko-KR")}원</b></div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>취소</button>
+          <button className="btn btn-primary" onClick={submit}>저장</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DayNoteCell({ value, onSave, style }){
+  const [text, setText] = useState(value);
+  const [focused, setFocused] = useState(false);
+  useEffect(() => { if(!focused) setText(value); }, [value, focused]);
+  function commit(){ setFocused(false); if(text.trim()!==(value||"").trim()) onSave(text); }
+  return (
+    <div className="day-note-cell" style={style}>
+      <input
+        type="text"
+        value={text}
+        placeholder="인원"
+        title="그날 출근한 인원 기입"
+        onFocus={()=>setFocused(true)}
+        onChange={e=>setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e=>{ if(e.key==="Enter") e.currentTarget.blur(); if(e.key==="Escape"){ setText(value); setFocused(false); e.currentTarget.blur(); } }}
+      />
+    </div>
+  );
+}
+
 function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete }){
   const range = scheduleRange(schedule);
   const [startDate, setStartDate] = useState(range.start);
   const [endDate, setEndDate] = useState(range.end);
-  const [contactId, setContactId] = useState(schedule.contactId || defaultContactId(trade));
+  const [contactId, setContactId] = useState(resolveContact(schedule, trade)?.id || schedule.contactId || defaultContactId(trade));
   const [workerName, setWorkerName] = useState(schedule.workerName || "");
   const [laborUnits, setLaborUnits] = useState(schedule.laborUnits!=null ? String(schedule.laborUnits) : "");
+  const [dailyWage, setDailyWage] = useState(schedule.dailyWage!=null ? String(schedule.dailyWage) : "");
   const [memo, setMemo] = useState(schedule.memo || "");
 
   function handleStartChange(v){
@@ -1297,8 +1721,9 @@ function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete })
   }
   function submit(){
     if(!startDate || !endDate){ alert("시작일과 종료일을 입력해주세요."); return; }
-    onSave({ startDate, endDate: endDate<startDate ? startDate : endDate, contactId, workerName: workerName.trim(), laborUnits: laborUnits==="" ? null : Number(laborUnits), memo });
+    onSave({ startDate, endDate: endDate<startDate ? startDate : endDate, contactId, workerName: workerName.trim(), laborUnits: laborUnits==="" ? null : Number(laborUnits), dailyWage: dailyWage==="" ? null : Number(dailyWage), memo });
   }
+  const contactWage = resolveContact({ contactId }, trade)?.dailyWage;
 
   return (
     <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
@@ -1321,7 +1746,7 @@ function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete })
             <input type="date" value={endDate} min={startDate} onChange={e=>setEndDate(e.target.value)} />
           </div>
           <div className="field">
-            <label>담당자 (연락용 거래처)</label>
+            <label>담당자 (연락용 거래처){(() => { const ph = trade?.contacts.find(c=>c.id===contactId)?.phone; return ph ? <> · <a href={"tel:"+ph.replace(/[^0-9+]/g,"")} style={{color:"var(--navy)", fontWeight:800}}>{ph}</a></> : null; })()}</label>
             <select value={contactId} onChange={e=>setContactId(e.target.value)}>
               {trade?.contacts.map(c => <option value={c.id} key={c.id}>{c.name || "(이름 미입력)"}{c.isDefault ? " (기본)" : ""}</option>)}
             </select>
@@ -1332,9 +1757,13 @@ function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete })
           </div>
           <div className="field">
             <label>품수 (0.5 단위)</label>
-            <input type="number" step="0.5" min="0" value={laborUnits} onChange={e=>setLaborUnits(e.target.value)} placeholder="예: 1.5" />
+            <input type="number" step="0.5" min="0" value={laborUnits} onChange={e=>setLaborUnits(e.target.value)} placeholder="비우면 일수만큼 계산" />
           </div>
           <div className="field">
+            <label>일당 (원, 이 일정만 다르게)</label>
+            <input type="number" step="10000" min="0" value={dailyWage} onChange={e=>setDailyWage(e.target.value)} placeholder={contactWage!=null ? `비우면 담당자 기본 ${Number(contactWage).toLocaleString("ko-KR")}원` : "공정별 담당자 탭에서 기본 일당 입력 가능"} />
+          </div>
+          <div className="field" style={{gridColumn:"1 / -1"}}>
             <label>메모</label>
             <input type="text" value={memo} onChange={e=>setMemo(e.target.value)} placeholder="예: 실측 약속, 오전 시공 등" />
           </div>
@@ -1457,8 +1886,12 @@ function SiteMultiSelect({ sites, selectedSiteIds, onChange }){
   const allSelected = selectedSiteIds===null;
   const isChecked = id => allSelected || selectedSiteIds.includes(id);
   const selectedCount = allSelected ? sites.length : selectedSiteIds.length;
+  const activeIds = sites.filter(s => !isSiteEnded(s)).map(s => s.id);
+  const onlyActiveSelected = !allSelected && activeIds.length>0 && activeIds.length<sites.length
+    && selectedSiteIds.length===activeIds.length && activeIds.every(id => selectedSiteIds.includes(id));
   const label = sites.length===0 ? "현장 없음"
     : allSelected ? "전체 현장"
+    : onlyActiveSelected ? `진행중 현장 ${activeIds.length}개`
     : selectedCount===0 ? "현장 선택"
     : selectedCount===1 ? sites.find(s=>isChecked(s.id))?.name || "1개 현장"
     : `현장 ${selectedCount}개 선택`;
@@ -1487,6 +1920,7 @@ function SiteMultiSelect({ sites, selectedSiteIds, onChange }){
       {open && (
         <div className="site-multiselect-panel">
           <div className="site-multiselect-actions">
+            <button type="button" className={onlyActiveSelected ? "on" : ""} onClick={()=>onChange(activeIds)} disabled={!activeIds.length}>진행중 {activeIds.length}개</button>
             <button type="button" onClick={()=>onChange(null)}>전체 선택</button>
             <button type="button" onClick={()=>onChange([])}>전체 해제</button>
           </div>
@@ -1504,7 +1938,73 @@ function SiteMultiSelect({ sites, selectedSiteIds, onChange }){
   );
 }
 
-function CalendarTab({ sites, trades, schedules, setSchedules }){
+function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNotes, setDayNotes }){
+  const dayNoteMap = useMemo(() => Object.fromEntries(dayNotes.map(n => [n.id, n])), [dayNotes]);
+  const [workerEdit, setWorkerEdit] = useState(null); // { siteId, date }
+  // 이름 자동완성 + 그 사람의 가장 최근 일당 자동 입력
+  const { nameSuggestions, lastWageByName } = useMemo(() => {
+    const sorted = [...dayNotes].sort((a,b) => (a.date||"").localeCompare(b.date||""));
+    const last = {};
+    sorted.forEach(n => (n.workers||[]).forEach(w => { if(w.name && w.wage!=null) last[w.name] = w.wage; else if(w.name && !(w.name in last)) last[w.name] = null; }));
+    return { nameSuggestions: Object.keys(last).sort((a,b)=>a.localeCompare(b,"ko")), lastWageByName: last };
+  }, [dayNotes]);
+  function saveDayWorkers(siteId, dateStr, workers, text){
+    const id = `${siteId}_${dateStr}`;
+    setDayNotes(prev => {
+      const others = prev.filter(n => n.id!==id);
+      return (workers.length || text) ? [...others, { id, siteId, date: dateStr, workers, text: text || "" }] : others;
+    });
+  }
+  const [showJpg, setShowJpg] = useState(false);
+  const [printMenuOpen, setPrintMenuOpen] = useState(false);
+  const [printMonths, setPrintMonths] = useState(null); // [{y, m}, ...] — 인쇄할 달들 (한 달 = 한 장)
+  const printMenuRef = useRef(null);
+  useEffect(() => {
+    function outside(e){ if(printMenuRef.current && !printMenuRef.current.contains(e.target)) setPrintMenuOpen(false); }
+    document.addEventListener("mousedown", outside);
+    return () => document.removeEventListener("mousedown", outside);
+  }, []);
+  // 선택된 현장들의 공정이 실제로 있는 달 목록 (인쇄 "공사기간 전체"용)
+  function workMonths(){
+    const set = new Set();
+    filtered.forEach(sc => {
+      const { start, end } = scheduleRange(sc);
+      let [y, m] = start.split("-").map(Number); m -= 1;
+      const [ey, em] = end.split("-").map(Number);
+      while((y < ey || (y===ey && m <= em-1)) && set.size < 24){ set.add(`${y}-${pad(m+1)}`); m++; if(m>11){ m=0; y++; } }
+    });
+    return [...set].sort().slice(0, 12).map(k => { const [y, m] = k.split("-").map(Number); return { y, m: m-1 }; });
+  }
+  // 인쇄: 고른 달들을 한 달에 한 장씩 따로 그린 뒤 브라우저 인쇄창을 띄우고, 끝나면 원래 화면으로
+  function startPrint(months){
+    if(!months.length){ alert("인쇄할 공정이 없어요."); return; }
+    setPrintMonths(months);
+    document.body.classList.add("printing");
+    const done = () => { document.body.classList.remove("printing"); setPrintMonths(null); window.removeEventListener("afterprint", done); };
+    window.addEventListener("afterprint", done);
+    // 각 달이 A4 가로 한 장에 꽉 차도록, 화면 밖에서 크기를 재고 그만큼 확대·축소합니다
+    setTimeout(() => {
+      const area = document.querySelector(".print-area");
+      if(area){
+        const pages = [...area.querySelectorAll(".print-page")];
+        pages.forEach(pg => { pg.style.zoom = 1; });
+        area.classList.add("measuring");
+        const sizes = pages.map(pg => ({ w: pg.scrollWidth, h: pg.scrollHeight }));
+        area.classList.remove("measuring");
+        // A4 가로(297×210mm)에서 여백 8mm를 뺀 인쇄 영역 ≈ 1060×730px, 약간 여유를 둠
+        pages.forEach((pg, i) => { pg.style.zoom = Math.min(1040 / sizes[i].w, 715 / sizes[i].h, 1.6); });
+      }
+      window.print();
+    }, 300);
+  }
+  function saveDayNote(siteId, dateStr, text){
+    const id = `${siteId}_${dateStr}`;
+    const clean = text.trim();
+    setDayNotes(prev => {
+      const others = prev.filter(n => n.id!==id);
+      return clean ? [...others, { id, siteId, date: dateStr, text: clean }] : others;
+    });
+  }
   const [view, setView] = useState("month"); // "month" | "agenda"
   const [cursor, setCursor] = useState(() => { const d = new Date(); return {y: d.getFullYear(), m: d.getMonth()}; });
   const [selectedSiteIds, setSelectedSiteIds] = useState(null); // null = not yet initialized; after the auto-default effect below runs once, always an explicit array
@@ -1515,9 +2015,26 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
     if(didInitSiteFilter.current) return;
     if(sites.length===0) return;
     didInitSiteFilter.current = true;
+    const allIds = sites.map(s => s.id);
     const activeIds = sites.filter(s => !isSiteEnded(s)).map(s => s.id);
-    setSelectedSiteIds(activeIds.length ? activeIds : sites.map(s=>s.id));
+    // 이 브라우저에서 마지막으로 골라둔 현장 선택을 복원합니다.
+    // 저장 이후 새로 추가된 현장은 (종료된 게 아니면) 자동으로 포함합니다.
+    const saved = loadLS("scheduler:siteFilter", null);
+    if(saved && Array.isArray(saved.selected)){
+      const known = new Set(saved.known || []);
+      const restored = [
+        ...saved.selected.filter(id => allIds.includes(id)),
+        ...activeIds.filter(id => !known.has(id) && !saved.selected.includes(id)),
+      ];
+      if(restored.length){ setSelectedSiteIds(restored); return; }
+    }
+    setSelectedSiteIds(activeIds.length ? activeIds : allIds);
   }, [sites]);
+  useEffect(() => {
+    if(!didInitSiteFilter.current) return;
+    // null = "전체 선택"
+    saveLS("scheduler:siteFilter", { selected: selectedSiteIds===null ? sites.map(s => s.id) : selectedSiteIds, known: sites.map(s => s.id) });
+  }, [selectedSiteIds]);
   const [chipStyle, setChipStyle] = useState(() => loadLS("scheduler:chipStyle", "fill")); // "fill" | "text"
   const [chipFontSize, setChipFontSize] = useState(() => {
     const saved = loadLS("scheduler:chipFontSize", 22);
@@ -1540,19 +2057,23 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", JSON.stringify({ scheduleId, originDate }));
   }
-  function handleCellDrop(e, dropDateStr){
+  function handleCellDrop(e, dropDateStr, dropSlot){
     e.preventDefault();
     setDragOverDate(null);
     let payload;
     try{ payload = JSON.parse(e.dataTransfer.getData("text/plain")); }catch(err){ return; }
     if(!payload || !payload.scheduleId || !payload.originDate || !dropDateStr) return;
     const delta = daysBetweenStr(payload.originDate, dropDateStr);
-    if(delta===0) return;
+    const target = schedules.find(sc => sc.id===payload.scheduleId);
+    const slotChanged = dropSlot!=null && target && target.slotPref!==dropSlot;
+    if(delta===0 && !slotChanged) return;
     setSchedules(prev => prev.map(sc => {
       if(sc.id!==payload.scheduleId) return sc;
       const { date, ...rest } = sc;
       const { start, end } = scheduleRange(sc);
-      return { ...rest, startDate: shiftDateStr(start, delta), endDate: shiftDateStr(end, delta) };
+      const next = { ...rest, startDate: shiftDateStr(start, delta), endDate: shiftDateStr(end, delta) };
+      if(dropSlot!=null) next.slotPref = dropSlot; // 놓은 줄을 기억
+      return next;
     }));
   }
   function deleteScheduleById(scheduleId, label){
@@ -1590,22 +2111,23 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   // builds one uninterrupted sequence of weeks spanning several consecutive months —
   // no blank filler between the end of one month and the start of the next, only at
   // the very start (before the 1st Sunday) and very end (after the last Saturday)
-  function buildContinuousWeeks(monthCursors){
+  function buildContinuousWeeks(monthCursors, dropTrailingPartial){
     const first = monthCursors[0], last = monthCursors[monthCursors.length-1];
     const firstDate = new Date(first.y, first.m, 1);
     const lastDate = new Date(last.y, last.m+1, 0);
     const firstDow = firstDate.getDay();
     const totalDays = Math.round((lastDate - firstDate) / 86400000) + 1;
     const trailing = (7 - ((firstDow + totalDays) % 7)) % 7;
+    // 첫 주 앞쪽·마지막 주 뒤쪽 빈칸도 이전/다음 달 실제 날짜로 채워서 이어지게 보여줍니다 (outside 표시)
     const cells = [];
-    for(let i=0;i<firstDow;i++) cells.push(null);
-    for(let i=0;i<totalDays;i++){
+    for(let i=-firstDow;i<totalDays+trailing;i++){
       const d = new Date(firstDate); d.setDate(d.getDate()+i);
-      cells.push({ y: d.getFullYear(), m: d.getMonth(), day: d.getDate() });
+      cells.push({ y: d.getFullYear(), m: d.getMonth(), day: d.getDate(), outside: i<0 || i>=totalDays });
     }
-    for(let i=0;i<trailing;i++) cells.push(null);
     const weeks = [];
     for(let i=0;i<cells.length;i+=7) weeks.push(cells.slice(i,i+7));
+    // 다음 달에 걸친 마지막 주는 다음 달 쪽에 붙이고 여기선 뺍니다 (연달아 인쇄할 때 겹치지 않게)
+    if(dropTrailingPartial && weeks.length>1 && weeks[weeks.length-1].some(c => c && c.outside)) weeks.pop();
     return weeks;
   }
 
@@ -1623,6 +2145,64 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
 
   // a distinct color per site for the overall-project header bar (stable regardless of filter)
   // — uses the site's own chosen color if set, otherwise falls back to an auto-assigned one
+  const siteBgMap = useMemo(() => {
+    const ordered = [...sites].sort((a,b) => (a.order??0) - (b.order??0));
+    return Object.fromEntries(ordered.map((s, i) => [s.id, s.bgColor || SITE_BG_PASTELS[i % SITE_BG_PASTELS.length]]));
+  }, [sites]);
+
+  // 엑셀 내보내기: 화면에 보이는 두 달을 달마다 시트 하나씩 (가로=날짜, 세로=현장별 공정/인원)
+  // + 해당 기간 일정 목록 시트(담당자·연락처·품수·일당 포함)
+  function exportExcel(){
+    if(typeof XLSX==="undefined"){ alert("엑셀 기능을 불러오지 못했어요. 인터넷 연결을 확인 후 새로고침 해주세요."); return; }
+    const months = [cursor, addMonths(cursor, 1)];
+    const wb = XLSX.utils.book_new();
+    const siteList = relevantSites;
+    months.forEach(({y, m}) => {
+      const dim = new Date(y, m+1, 0).getDate();
+      const days = Array.from({length: dim}, (_, i) => i+1);
+      const ds = d => `${y}-${pad(m+1)}-${pad(d)}`;
+      const header = ["현장", "구분", ...days.map(d => { const dow = DOW[new Date(y, m, d).getDay()]; const h = krHoliday(ds(d)); return `${m+1}/${d}(${dow})${h ? " "+h : ""}`; })];
+      const rows = [header];
+      siteList.forEach(site => {
+        const tradeRow = [site.name, "공정"];
+        const noteRow = ["", "인원"];
+        days.forEach(d => {
+          const date = ds(d);
+          const names = filtered
+            .filter(sc => sc.siteId===site.id && (() => { const r = scheduleRange(sc); return date>=r.start && date<=r.end; })())
+            .map(sc => { const t = tradeById[sc.tradeId]; return t ? t.name + (sc.memo ? ` (${sc.memo})` : "") : null; })
+            .filter(Boolean);
+          tradeRow.push(names.join(", "));
+          noteRow.push(formatWorkers(dayNoteMap[`${site.id}_${date}`]));
+        });
+        rows.push(tradeRow, noteRow);
+      });
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws["!cols"] = [{wch:18}, {wch:6}, ...days.map(() => ({wch:12}))];
+      ws["!freeze"] = { xSplit: 2, ySplit: 1 };
+      XLSX.utils.book_append_sheet(wb, ws, `${y}-${pad(m+1)}`);
+    });
+    // 일정 목록 시트
+    const rangeStart = `${months[0].y}-${pad(months[0].m+1)}-01`;
+    const last = months[1];
+    const rangeEnd = `${last.y}-${pad(last.m+1)}-${pad(new Date(last.y, last.m+1, 0).getDate())}`;
+    const siteOrder = Object.fromEntries(siteList.map((s,i) => [s.id, i]));
+    const list = filtered
+      .filter(sc => { const r = scheduleRange(sc); return r.start<=rangeEnd && r.end>=rangeStart && siteOrder[sc.siteId]!==undefined; })
+      .sort((a,b) => (siteOrder[a.siteId]-siteOrder[b.siteId]) || scheduleRange(a).start.localeCompare(scheduleRange(b).start));
+    const listRows = [["현장","공정","시작일","종료일","일수","담당자","연락처","작업자","품수","일당","메모"]];
+    list.forEach(sc => {
+      const trade = tradeById[sc.tradeId]; const site = siteById[sc.siteId];
+      const r = scheduleRange(sc); const contact = resolveContact(sc, trade);
+      listRows.push([site?.name||"", trade?.name||"", r.start, r.end, daySpan(sc), contact?.name||"", contact?.phone||"", sc.workerName||"",
+        sc.laborUnits!=null ? Number(sc.laborUnits) : "", effectiveDailyWage(sc, contact) ?? "", sc.memo||""]);
+    });
+    const ws2 = XLSX.utils.aoa_to_sheet(listRows);
+    ws2["!cols"] = [{wch:18},{wch:10},{wch:12},{wch:12},{wch:6},{wch:12},{wch:14},{wch:12},{wch:6},{wch:10},{wch:20}];
+    XLSX.utils.book_append_sheet(wb, ws2, "일정목록");
+    XLSX.writeFile(wb, `공정표_${months[0].y}.${pad(months[0].m+1)}-${last.y}.${pad(last.m+1)}.xlsx`);
+  }
+
   const siteColorMap = useMemo(() => Object.fromEntries(
     sites.map((s, i) => [s.id, s.color || PROJECT_COLOR_POOL[i % PROJECT_COLOR_POOL.length]])
   ), [sites]);
@@ -1680,9 +2260,18 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
   const todayFull = todayStr();
 
   // renders one month's dow-row + week grid (used twice, stacked vertically)
-  function renderCalendarBlock(monthCursors, sitesOverride){
-    const weeks = buildContinuousWeeks(monthCursors);
+  function renderCalendarBlock(monthCursors, sitesOverride, opts = {}){
+    const weeks = buildContinuousWeeks(monthCursors, opts.dropTrailingPartial);
     const siteList = sitesOverride || relevantSites;
+    // 인쇄처럼 현장 목록을 따로 넘기면, 현장 선택 필터와 상관없이 그 현장들의 전체 일정을 씁니다
+    const pool = sitesOverride ? schedules : filtered;
+    const rangeFor = site => {
+      if(!sitesOverride) return siteRanges[site.id];
+      if(site.projectStart && site.projectEnd) return scheduleRange({ startDate: site.projectStart, endDate: site.projectEnd });
+      const rs = pool.filter(sc => sc.siteId===site.id).map(scheduleRange);
+      if(!rs.length) return null;
+      return { start: rs.reduce((a,r)=>r.start<a?r.start:a, rs[0].start), end: rs.reduce((a,r)=>r.end>a?r.end:a, rs[0].end) };
+    };
     const monthKeyOf = cell => cell ? `${cell.y}-${cell.m}` : null;
 
     // segments are only used to place the big faint month-number watermark —
@@ -1691,19 +2280,35 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
     // that's mostly one month never gets mis-tinted by a single day from the next.
     const weekMonthKey = week => {
       const counts = {};
-      week.forEach(c => { if(c){ const k = monthKeyOf(c); counts[k] = (counts[k]||0)+1; } });
+      week.forEach(c => { if(c && !c.outside){ const k = monthKeyOf(c); counts[k] = (counts[k]||0)+1; } });
       let best = null, bestCount = 0;
       Object.entries(counts).forEach(([k,v]) => { if(v>bestCount){ best=k; bestCount=v; } });
       return best;
     };
+    // 선택된 현장이 하나도 일하지 않는 주는 숨깁니다 (예: 11월에 시작하는 현장만 고르면 10월 주들은 안 보임)
+    const sitesActiveInWeek = week => {
+      const ds = week.map(c => c ? dateStrFor(c.y, c.m, c.day) : null);
+      return siteList.filter(site => ds.some(d => {
+        if(!d) return false;
+        const range = rangeFor(site);
+        if(range && d>=range.start && d<=range.end) return true;
+        return pool.some(sc => sc.siteId===site.id && (() => { const {start,end}=scheduleRange(sc); return d>=start && d<=end; })());
+      }));
+    };
+    const weekSites = weeks.map(sitesActiveInWeek);
     const segments = [];
     weeks.forEach((week, wi) => {
+      if(!weekSites[wi].length) return;
       const key = weekMonthKey(week);
       const last = segments[segments.length-1];
       if(last && last.key===key) last.weekIndices.push(wi);
       else segments.push({ key, weekIndices:[wi] });
     });
 
+    if(!segments.length){
+      if(opts.printMode) return null;
+      return <div className="empty">이 기간에는 선택된 현장의 공정이 없어요.<br/>‹ › 버튼으로 다른 달을 보거나, 현장 선택을 바꿔보세요.</div>;
+    }
     return (
       <div className="card cal-continuous">
         {segments.map((seg, si) => {
@@ -1721,13 +2326,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                 // only show a site's label/lane this week if it's actually active on at
                 // least one day of the week — otherwise its name would show for weeks
                 // that have nothing scheduled for it at all
-                const weekSiteList = siteList.filter(site => dateStrs.some(ds => {
-                  if(!ds) return false;
-                  const range = siteRanges[site.id];
-                  const headerActive = range && ds>=range.start && ds<=range.end;
-                  const hasTrade = filtered.some(sc => sc.siteId===site.id && (() => { const {start,end}=scheduleRange(sc); return ds>=start && ds<=end; })());
-                  return !!headerActive || hasTrade;
-                }));
+                const weekSiteList = weekSites[wi];
                 return (
                   <div className={"week-row" + weekParity} key={wi}>
                     <div className="cal-grid has-labels cal-date-row">
@@ -1743,7 +2342,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                         return (
                           <div
                             key={di}
-                            className={"cal-cell" + (!cell ? " empty-cell" : "") + (tintOn ? " month-tint-cell" : "") + (holidayName ? " holiday-cell" : "") + (dateStr===todayFull ? " today" : "") + (selectedDate===dateStr && cell ? " picked" : "") + (dragOverDate===dateStr && cell ? " drag-over" : "") + (topBoundary ? " month-boundary-top" : "") + (leftBoundary ? " month-boundary-left" : "")}
+                            className={"cal-cell" + (!cell ? " empty-cell" : "") + (tintOn ? " month-tint-cell" : "") + (cell && cell.outside ? " outside-month" : "") + (holidayName ? " holiday-cell" : "") + (dateStr===todayFull ? " today" : "") + (selectedDate===dateStr && cell ? " picked" : "") + (dragOverDate===dateStr && cell ? " drag-over" : "") + (topBoundary ? " month-boundary-top" : "") + (leftBoundary ? " month-boundary-left" : "")}
                             onClick={()=> cell && setSelectedDate(dateStr)}
                             onDragOver={e=>{ if(cell) e.preventDefault(); }}
                             onDragEnter={e=>{ if(cell){ e.preventDefault(); setDragOverDate(dateStr); } }}
@@ -1752,8 +2351,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                           >
                             {cell && (
                               <span className={"cal-date" + (di===0 || holidayName ? " cal-date-sun" : "") + (di===6 && !holidayName ? " cal-date-sat" : "")}>
-                                <span>{cell.day}{dateStr===todayFull && <span className="cal-today-badge">TODAY</span>}</span>
-                                <span className="cal-dow-inline">{holidayName || DOW[di]}</span>
+                                <span>{cell.outside ? `${cell.m+1}/${cell.day}` : cell.day}{dateStr===todayFull && <span className="cal-today-badge">TODAY</span>}</span><span className="cal-dow-inline">{holidayName || DOW[di]}</span>
                               </span>
                             )}
                           </div>
@@ -1766,7 +2364,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                       const weekEnd = lastValid;
                       let rowCursor = 1;
                       const siteBlocks = weekSiteList.map((site, sidx) => {
-                        const siteSchedules = filtered.filter(sc => sc.siteId===site.id && sc.tradeId!=="misc");
+                        const siteSchedules = pool.filter(sc => sc.siteId===site.id && sc.tradeId!=="misc");
                         const rawEvents = [];
                         siteSchedules.forEach(sc => {
                           const { start, end } = scheduleRange(sc);
@@ -1800,14 +2398,22 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                           });
                         });
                         events.sort((a,b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
-                        const slotEndDates = [];
+                        // 줄 배치: 끌어다 놓아서 줄을 지정한 일정(slotPref)을 먼저 그 줄에 두고,
+                        // 나머지는 비어 있는 가장 위 줄부터 자동으로 채웁니다
+                        const slotRanges = []; // slot -> [[start,end], ...]
+                        const isFree = (slot, ev) => !(slotRanges[slot]||[]).some(([a,b]) => !(ev.end < a || ev.start > b));
+                        const place = (ev, slot) => { (slotRanges[slot] = slotRanges[slot] || []).push([ev.start, ev.end]); ev.slot = slot; };
                         events.forEach(ev => {
-                          let slot = slotEndDates.findIndex(d => d < ev.start);
-                          if(slot===-1) slot = slotEndDates.length;
-                          slotEndDates[slot] = ev.end;
-                          ev.slot = slot;
+                          const pref = ev.scs.map(x => x.slotPref).find(v => v!=null);
+                          ev.pref = pref!=null ? Number(pref) : null;
                         });
-                        const slotCount = Math.max(3, slotEndDates.length);
+                        events.filter(ev => ev.pref!=null).forEach(ev => { if(isFree(ev.pref, ev)) place(ev, ev.pref); });
+                        events.filter(ev => ev.slot==null).forEach(ev => {
+                          let slot = 0;
+                          while(!isFree(slot, ev)) slot++;
+                          place(ev, slot);
+                        });
+                        const slotCount = Math.max(3, slotRanges.length);
                         const slotsRender = [];
                         for(let s=0; s<slotCount; s++){
                           const slotEvents = events.filter(ev => ev.slot===s);
@@ -1822,9 +2428,12 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                             if(!dateStrs[d]){ cells.push({type:"blank", colStart:d+1, colEnd:d+2}); d++; continue; }
                             const ev = coverage[d];
                             if(ev){
-                              const si = dateStrs.indexOf(ev.start), ei = dateStrs.indexOf(ev.end);
-                              cells.push({ type:"bar", event: ev, colStart: si+1, colEnd: ei+2, dateStr: dateStrs[si] });
-                              d = ei+1;
+                              // 출력해서 현장에 붙여도 헷갈리지 않도록, 연속 공정도 하루하루
+                              // 칸을 나눠서 매일 공정명이 보이게 합니다 (같은 줄은 유지)
+                              const dayStr = dateStrs[d];
+                              const daySc = ev.scs.find(s => { const r = scheduleRange(s); return dayStr>=r.start && dayStr<=r.end; }) || ev.sc;
+                              cells.push({ type:"bar", event: ev, daySc, colStart: d+1, colEnd: d+2, dateStr: dayStr });
+                              d++;
                             } else {
                               cells.push({ type:"empty", colStart: d+1, colEnd: d+2, dateStr: dateStrs[d] });
                               d++;
@@ -1833,7 +2442,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                           slotsRender.push(cells);
                         }
                         const rowStart = rowCursor;
-                        const rowEnd = rowCursor + slotCount;
+                        const rowEnd = rowCursor + slotCount + 1; // +1 = 맨 아래 출근 인원 칸
                         rowCursor = rowEnd;
                         return { site, sidx, rowStart, rowEnd, slotCount, slotsRender };
                       });
@@ -1843,7 +2452,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                             <React.Fragment key={site.id}>
                               <div
                                 className={"site-label-tab" + (site.abbreviation ? " has-abbr" : "")}
-                                style={{ gridColumn:"1", gridRow:`${rowStart} / ${rowEnd}`, background:"#fff", color: siteColorMap[site.id] }}
+                                style={{ gridColumn:"1", gridRow:`${rowStart} / ${rowEnd}`, background: siteBgMap[site.id], color: siteColorMap[site.id] }}
                                 title={site.name + (site.manager ? ` (${site.manager})` : "")}
                               >
                                 <div className="site-label-tab-inner">
@@ -1854,7 +2463,6 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                       ))}
                                     </span>
                                   ) : <span>{site.name}</span>}
-                                  {site.manager && <span className="site-label-manager">({site.manager})</span>}
                                 </div>
                               </div>
                               {slotsRender.map((cells, si) => cells.map((c, ci) => {
@@ -1867,37 +2475,49 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
                                   return (
                                     <div
                                       key={ci}
-                                      className="trade-slot-empty"
-                                      style={{gridColumn:`${c.colStart+1} / ${c.colEnd+1}`, gridRow: rowLine, ...extraStyle}}
+                                      className={"trade-slot-empty" + (dragOverDate===c.dateStr ? " drop-target" : "")}
+                                      style={{gridColumn:`${c.colStart+1} / ${c.colEnd+1}`, gridRow: rowLine, ...extraStyle, background: siteBgMap[site.id]}}
                                       title="클릭해서 이 날짜에 공정 추가"
+                                      onDragOver={e=>e.preventDefault()}
+                                      onDragEnter={e=>{ e.preventDefault(); setDragOverDate(c.dateStr); }}
+                                      onDrop={e=>{ e.stopPropagation(); handleCellDrop(e, c.dateStr, si); }}
                                       onClick={e=>{ e.stopPropagation(); setQuickAdd({siteId: site.id, date: c.dateStr}); }}
                                     />
                                   );
                                 }
                                 const tr = c.event;
-                                const mergedCount = tr.scs.length;
-                                const workerNames = [...new Set(tr.scs.map(s=>s.workerName).filter(Boolean))];
-                                const memos = [...new Set(tr.scs.map(s=>s.memo).filter(Boolean))];
-                                const laborTotal = tr.scs.reduce((sum,s)=> s.laborUnits!=null ? sum+Number(s.laborUnits) : sum, 0);
-                                const hasLabor = tr.scs.some(s=>s.laborUnits!=null);
-                                const mergeNote = mergedCount>1 ? ` · 일정 ${mergedCount}건 병합 (클릭하면 가장 빠른 일정 수정)` : "";
+                                const sc = c.daySc;
+                                const r = scheduleRange(sc);
                                 return (
                                   <div
                                     key={ci}
-                                    className="trade-day-chip"
-                                    style={{ gridColumn:`${c.colStart+1} / ${c.colEnd+1}`, gridRow: rowLine, ...extraStyle, background: pastelizeColor(tr.trade.color) }}
-                                    title={`${site.name} · ${tr.trade.name}${workerNames.length ? " · "+workerNames.join(", ") : ""}${memos.length ? " · "+memos.join(", ") : ""} (${tr.start} ~ ${tr.end})${mergeNote} — 드래그로 날짜 이동, 클릭하면 수정`}
+                                    className={"trade-day-chip" + (dragOverDate===c.dateStr ? " drop-target" : "")}
+                                    style={{ gridColumn:`${c.colStart+1} / ${c.colEnd+1}`, gridRow: rowLine, ...extraStyle, background: deepenColor(siteBgMap[site.id], 0.1) }}
+                                    title={`${site.name} · ${tr.trade.name}${sc.workerName ? " · "+sc.workerName : ""}${sc.memo ? " · "+sc.memo : ""} (${r.start} ~ ${r.end}) — 클릭하면 수정, 드래그로 날짜 이동`}
                                     draggable
-                                    onDragStart={e=>handleChipDragStart(e, tr.sc.id, c.dateStr)}
+                                    onDragStart={e=>handleChipDragStart(e, sc.id, c.dateStr)}
                                     onDragEnd={()=>setDragOverDate(null)}
-                                    onClick={e=>{ e.stopPropagation(); setEditingScheduleId(tr.sc.id); }}
+                                    onDragOver={e=>e.preventDefault()}
+                                    onDragEnter={e=>{ e.preventDefault(); setDragOverDate(c.dateStr); }}
+                                    onDrop={e=>{ e.stopPropagation(); handleCellDrop(e, c.dateStr, si); }}
+                                    onClick={e=>{ e.stopPropagation(); setEditingScheduleId(sc.id); }}
                                   >
-                                    <span className="chip-main" style={{fontSize: chipFontSize+"px"}}>
-                                      {tr.trade.name}{hasLabor && ` ${laborTotal}품`}{site.manager && ` (${site.manager})`}
+                                    <span className="chip-main" style={{fontSize: chipFontSize+"px", color: tradeTextColor(tr.trade.color)}}>
+                                      {tr.trade.name}{sc.memo && ` (${sc.memo})`}
                                     </span>
                                   </div>
                                 );
                               }))}
+                              {dateStrs.map((ds, d) => ds ? (
+                                <DayWorkerCell
+                                  key={"note"+d}
+                                  note={dayNoteMap[`${site.id}_${ds}`]}
+                                  onClick={e=>{ e.stopPropagation(); setWorkerEdit({ siteId: site.id, date: ds }); }}
+                                  style={{ gridColumn: d+2, gridRow: rowEnd-1, background: siteBgMap[site.id] }}
+                                />
+                              ) : (
+                                <div key={"note"+d} style={{ gridColumn: d+2, gridRow: rowEnd-1 }} />
+                              ))}
                             </React.Fragment>
                           ))}
                         </div>
@@ -1916,14 +2536,14 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
 
   return (
     <div>
-      <div className="section-head">
+      <div className="section-head no-print">
         <div>
           <p className="eyebrow">SCHEDULE OVERVIEW</p>
           <h2>공사 캘린더</h2>
         </div>
         <div style={{display:"flex", gap:10, alignItems:"center", flexWrap:"wrap"}}>
           <div className="view-toggle" title="공정 막대 글자 크기">
-            <button className={chipFontSize===22?"active":""} onClick={()=>setChipFontSize(22)}>조금 작게</button>
+            <button className={chipFontSize===22?"active":""} onClick={()=>setChipFontSize(22)}>기본</button>
             <button className={chipFontSize===17?"active":""} onClick={()=>setChipFontSize(17)}>작게</button>
           </div>
           <div className="cal-filter">
@@ -1937,20 +2557,64 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
         </div>
       </div>
 
+      <div className="export-bar no-print">
+        <button className="btn btn-ghost btn-sm" onClick={()=>setShowJpg(true)} disabled={sites.length===0}>🖼 손님용 JPG</button>
+        <button className="btn btn-ghost btn-sm" onClick={exportExcel}>📊 엑셀로 내보내기</button>
+        <div className="site-multiselect" ref={printMenuRef}>
+          <button className="btn btn-ghost btn-sm" onClick={()=>setPrintMenuOpen(o=>!o)}>🖨 인쇄하기 (월별) ▾</button>
+          {printMenuOpen && (
+            <div className="site-multiselect-panel" style={{minWidth:230, left:"auto", right:0}}>
+              {(() => {
+                const wm = workMonths();
+                return wm.length ? (
+                  <button className="print-menu-item" style={{color:"var(--navy)"}} onClick={()=>{ setPrintMenuOpen(false); startPrint(wm); }}>
+                    공사기간 전체 인쇄 ({wm[0].m+1}월{wm.length>1 ? ` ~ ${wm[wm.length-1].m+1}월` : ""} · {wm.length}장)
+                  </button>
+                ) : null;
+              })()}
+              {[cursor, addMonths(cursor,1)].map(m => (
+                <button key={m.y+"-"+m.m} className="print-menu-item" onClick={()=>{ setPrintMenuOpen(false); startPrint([m]); }}>
+                  {m.y}년 {m.m+1}월만 인쇄
+                </button>
+              ))}
+              <p className="site-multiselect-empty" style={{fontSize:11, margin:"4px 0 0"}}>현장 선택에서 고른 현장만, 한 달에 한 장씩 인쇄돼요</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {printMonths && (
+        <div className="print-area">
+          {printMonths.map(pm => {
+            // 다음 달도 함께 인쇄하면, 두 달에 걸친 주는 다음 달 장에만 나옵니다
+            const next = addMonths(pm, 1);
+            const nextPrinted = printMonths.some(x => x.y===next.y && x.m===next.m);
+            const block = renderCalendarBlock([pm], undefined, { printMode: true, dropTrailingPartial: nextPrinted });
+            if(!block) return null;
+            return (
+              <div className="print-page" key={pm.y+"-"+pm.m}>
+                <h2 className="print-title">
+                  공정표 · {pm.y}년 {pm.m+1}월
+                  {relevantSites.length<=3 && <span className="print-sub"> · {relevantSites.map(s => s.name).join(", ")}</span>}
+                </h2>
+                {block}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {true && (
-        <>
+        <div className="no-print">
           {renderCalendarBlock([cursor, addMonths(cursor, 1)])}
 
           <div className="card cal-legend-card">
             <div className="cal-legend">
-              {projectItems.map(p => (
-                <span className="legend-item" key={p.id}>
-                  <span className="legend-dot" style={{background: siteColorMap[p.siteId]}} />
-                  {siteById[p.siteId]?.name} (전체공사)
+              {relevantSites.map(s => (
+                <span className="legend-item" key={s.id}>
+                  <span className="legend-dot" style={{background: siteBgMap[s.id], boxShadow:"inset 0 0 0 1px rgba(0,0,0,.25)"}} />
+                  {s.name}
                 </span>
-              ))}
-              {sortedTradeList(trades).map(t => (
-                <span className="legend-item" key={t.id}><span className="legend-dot" style={{background:t.color}} />{t.name}</span>
               ))}
             </div>
           </div>
@@ -1972,7 +2636,30 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
               )}
             </div>
           )}
-        </>
+        </div>
+      )}
+
+      {workerEdit && siteById[workerEdit.siteId] && (
+        <DayWorkersEditModal
+          site={siteById[workerEdit.siteId]}
+          date={workerEdit.date}
+          note={dayNoteMap[`${workerEdit.siteId}_${workerEdit.date}`]}
+          nameSuggestions={nameSuggestions}
+          lastWageByName={lastWageByName}
+          onClose={()=>setWorkerEdit(null)}
+          onSave={(workers, text) => saveDayWorkers(workerEdit.siteId, workerEdit.date, workers, text)}
+        />
+      )}
+
+      {showJpg && (
+        <CustomerJpgModal
+          sites={sites}
+          defaultSiteId={relevantSites[0]?.id}
+          schedules={schedules}
+          tradeById={tradeById}
+          siteBgMap={siteBgMap}
+          onClose={()=>setShowJpg(false)}
+        />
       )}
 
 
@@ -1988,7 +2675,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
             site={site}
             onClose={()=>setEditingScheduleId(null)}
             onSave={patch => { setSchedules(prev => prev.map(s => s.id===sc.id ? {...s, ...patch} : s)); setEditingScheduleId(null); }}
-            onDelete={() => { if(confirm(`"${site?.name} · ${trade?.name}" 일정을 삭제할까요?`)){ setSchedules(prev=>prev.filter(s=>s.id!==sc.id)); setEditingScheduleId(null); } }}
+            onDelete={() => { setSchedules(prev=>prev.filter(s=>s.id!==sc.id)); setEditingScheduleId(null); }}
           />
         );
       })()}
@@ -2000,7 +2687,16 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
           trades={trades}
           initialDate={quickAdd.date}
           onClose={()=>setQuickAdd(null)}
-          onAdd={(siteId, sc) => { setSchedules(prev => [...prev, { ...sc, id: uid(), siteId }]); setQuickAdd(null); }}
+          onAdd={(siteId, sc, newTradeName) => {
+            let tradeId = sc.tradeId;
+            if(newTradeName){
+              tradeId = "trade-" + uid();
+              const color = nextTradeColor(trades.map(t=>t.color));
+              setTrades(prev => [...prev, { id: tradeId, name: newTradeName, color, note: "", contacts: [{ id: uid(), name:"", phone:"", bank:"", account:"", isDefault:true }] }]);
+            }
+            setSchedules(prev => [...prev, { ...sc, tradeId, id: uid(), siteId }]);
+            setQuickAdd(null);
+          }}
         />
       )}
 
@@ -2034,7 +2730,7 @@ function CalendarTab({ sites, trades, schedules, setSchedules }){
 }
 
 function ScheduleRow({ sc, trade, site, onDelete, onEdit }){
-  const contact = trade?.contacts.find(c=>c.id===sc.contactId);
+  const contact = resolveContact(sc, trade);
   const { start, end } = scheduleRange(sc);
   const span = daySpan(sc);
   return (
@@ -2093,7 +2789,7 @@ function ContactsTab({ trades, setTrades, schedules, setSchedules }){
   }
   function deleteTrade(tradeId, tradeName){
     if(!confirm(`"${tradeName}" 공정을 삭제하면 관련된 일정도 함께 삭제됩니다. 계속할까요?`)) return;
-    setTrades(prev => prev.filter(t => t.id!==tradeId));
+    setTrades(prev => prev.filter(t => t.id!==tradeId && t.mergedInto!==tradeId));
     setSchedules(prev => prev.filter(sc => sc.tradeId!==tradeId));
   }
 
@@ -2110,8 +2806,10 @@ function ContactsTab({ trades, setTrades, schedules, setSchedules }){
       {sortedTradeList(trades).map(trade => (
         <div className="card contact-card" key={trade.id}>
           <div className="contact-head">
-            <span className="trade-swatch" style={{background:trade.color}} />
-            <h4 style={{flex:1}}>{trade.name}</h4>
+            <label className="trade-color-pick" title="공정 글자색 바꾸기" style={{background:trade.color}}>
+              <input type="color" value={trade.color} onChange={e=>{ const c = e.target.value; setTrades(prev => prev.map(t => t.id===trade.id ? {...t, color:c} : t)); }} />
+            </label>
+            <h4 style={{flex:1, color: tradeTextColor(trade.color)}}>{trade.name}</h4>
             <button className="btn btn-danger btn-sm" onClick={()=>deleteTrade(trade.id, trade.name)}>공정 삭제</button>
           </div>
           <p className="contact-note">{trade.note}</p>
@@ -2122,6 +2820,7 @@ function ContactsTab({ trades, setTrades, schedules, setSchedules }){
               <input type="text" value={c.phone} placeholder="전화번호" onChange={e=>updateContact(trade.id, c.id, {phone:e.target.value})} />
               <input type="text" value={c.bank} placeholder="은행" onChange={e=>updateContact(trade.id, c.id, {bank:e.target.value})} />
               <input type="text" value={c.account} placeholder="계좌번호" onChange={e=>updateContact(trade.id, c.id, {account:e.target.value})} />
+              <input type="number" min="0" step="10000" value={c.dailyWage ?? ""} placeholder="일당(원)" title="1품당 일당 (원)" onChange={e=>updateContact(trade.id, c.id, {dailyWage: e.target.value==="" ? null : Number(e.target.value)})} />
               <div style={{display:"flex", gap:6, alignItems:"center", justifyContent:"flex-end"}}>
                 {c.isDefault ? <span className="default-badge">기본</span> : (
                   <button className="btn btn-ghost btn-sm" onClick={()=>makeDefault(trade.id, c.id)}>기본으로</button>
@@ -2283,7 +2982,67 @@ function VendorFormModal({ onClose, onSave }){
 }
 
 /* ---------- Labor tab (담당자관리 — 품수 집계) ---------- */
-function LaborTab({ trades, sites, schedules }){
+function SitePayroll({ sites, dayNotes, monthStart, monthEnd }){
+  const [scope, setScope] = useState("all"); // "all" = 전체 기간, "month" = 이번 달
+  const notes = dayNotes.filter(n => scope==="all" || (n.date>=monthStart && n.date<=monthEnd));
+  const bySite = {};
+  notes.forEach(n => (n.workers||[]).forEach(w => {
+    if(!w.name) return;
+    const site = (bySite[n.siteId] = bySite[n.siteId] || { people:{}, total:0, missing:0 });
+    const p = (site.people[w.name] = site.people[w.name] || { days:0, amount:0, missing:0 });
+    p.days += 1;
+    if(w.wage!=null){ p.amount += Number(w.wage); site.total += Number(w.wage); } else { p.missing += 1; site.missing += 1; }
+  }));
+  const orderedSites = [...sites].sort((a,b) => (a.order??0)-(b.order??0)).filter(s => bySite[s.id]);
+  const grand = orderedSites.reduce((sum, s) => sum + bySite[s.id].total, 0);
+  return (
+    <div style={{marginBottom:28}}>
+      <div className="section-head" style={{marginBottom:10}}>
+        <div>
+          <p className="eyebrow">PAYROLL / 현장별 인건비</p>
+          <h2>현장별 출근 인원 지급액</h2>
+        </div>
+        <div className="view-toggle">
+          <button className={scope==="all"?"active":""} onClick={()=>setScope("all")}>전체 기간</button>
+          <button className={scope==="month"?"active":""} onClick={()=>setScope("month")}>이번 달만</button>
+        </div>
+      </div>
+      <p style={{fontSize:13, color:"var(--ink-soft)", margin:"0 0 12px"}}>캘린더 각 현장 맨 아래 <b>인원</b> 칸에 입력한 이름·일당을 현장별·사람별로 자동 합산합니다.</p>
+      {orderedSites.length===0 ? (
+        <div className="empty">입력된 출근 인원이 없습니다.<br/>캘린더에서 현장 맨 아래 "인원" 칸을 눌러 이름과 일당을 넣어보세요.</div>
+      ) : (
+        <>
+          {orderedSites.map(site => {
+            const data = bySite[site.id];
+            return (
+              <div className="card" style={{marginBottom:12}} key={site.id}>
+                <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8}}>
+                  <h4 style={{margin:0, fontSize:15}}>{site.name}</h4>
+                  <span style={{fontFamily:"var(--mono)", fontWeight:800, color:"var(--navy)"}}>{data.total.toLocaleString("ko-KR")}원</span>
+                </div>
+                {Object.entries(data.people).sort((a,b)=>b[1].amount-a[1].amount).map(([name, p]) => (
+                  <div key={name} className="payroll-row">
+                    <span>{name}</span>
+                    <span className="payroll-days">{p.days}일{p.missing ? ` (일당 미입력 ${p.missing}일)` : ""}</span>
+                    <span className="payroll-amount">{p.amount.toLocaleString("ko-KR")}원</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+          <div className="card" style={{background:"var(--navy-deep)", color:"#fff"}}>
+            <div style={{display:"flex", justifyContent:"space-between", fontWeight:800, fontSize:14}}>
+              <span>{scope==="all" ? "전체 기간" : "이번 달"} 인건비 합계</span>
+              <span style={{fontFamily:"var(--mono)"}}>{grand.toLocaleString("ko-KR")}원</span>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function LaborTab({ trades, sites, schedules, dayNotes }){
   const [cursor, setCursor] = useState(() => { const d = new Date(); return {y: d.getFullYear(), m: d.getMonth()}; });
 
   function changeMonth(delta){
@@ -2335,6 +3094,8 @@ function LaborTab({ trades, sites, schedules }){
           <button onClick={()=>changeMonth(1)}>›</button>
         </div>
       </div>
+
+      <SitePayroll sites={sites} dayNotes={dayNotes} monthStart={monthStart} monthEnd={monthEnd} />
 
       <p style={{fontSize:13, color:"var(--ink-soft)", marginBottom:16, maxWidth:640}}>
         캘린더에서 일정을 추가·수정할 때 입력한 <b>품수(0.5 단위)</b>를 공정별·담당자별로 이번 달 기준 합산합니다. 일당 계산할 때 참고하세요.
