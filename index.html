@@ -251,6 +251,11 @@
 
   .cal-nav{display:flex;align-items:center;gap:10px;}
   .cal-nav button{background:var(--card);border:1px solid var(--paper-line);border-radius:8px;width:32px;height:32px;font-size:15px;}
+  .cal-nav button.cal-today-btn{width:auto;padding:0 14px;background:var(--accent);border-color:var(--accent);color:#fff;font-size:13px;font-weight:800;}
+  .cal-nav button.cal-today-btn:hover{filter:brightness(1.07);}
+  .week-row{scroll-margin-top:14px;}
+  .week-row.today-flash{animation:todayFlash 1.8s ease-out;}
+  @keyframes todayFlash{0%,35%{box-shadow:0 0 0 3px var(--accent);}100%{box-shadow:0 0 0 3px transparent;}}
   .cal-month{font-size:16px;font-weight:800;font-family:var(--mono);min-width:110px;text-align:center;}
   .cal-filter select{padding:8px 10px;border-radius:8px;border:1px solid var(--paper-line);font-size:13px;background:var(--card);}
   .site-multiselect{position:relative;}
@@ -2257,6 +2262,32 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
     setSelectedDate(null);
   }
 
+  // "오늘" 버튼: 이번 달로 이동한 뒤 오늘이 들어 있는 주로 스크롤하고 잠깐 강조합니다.
+  // 오늘 주에 선택된 현장 공정이 없어 그 주가 숨겨져 있으면, 오늘 이후 가장 가까운 주로 갑니다.
+  const [todayFlash, setTodayFlash] = useState(0);
+  function goToday(){
+    const d = new Date();
+    setCursor({ y: d.getFullYear(), m: d.getMonth() });
+    setSelectedDate(null);
+    setTodayFlash(n => n+1);
+  }
+  useEffect(() => {
+    if(!todayFlash) return;
+    const t = setTimeout(() => {
+      const rows = [...document.querySelectorAll(".no-print .week-row[data-start]")];
+      const today = todayStr();
+      const target = rows.find(r => r.dataset.start<=today && r.dataset.end>=today)
+        || rows.find(r => r.dataset.start>today)
+        || rows[rows.length-1];
+      if(!target) return;
+      target.scrollIntoView({ behavior:"smooth", block:"start" });
+      target.classList.remove("today-flash");
+      void target.offsetWidth; // 애니메이션 다시 시작
+      target.classList.add("today-flash");
+    }, 60);
+    return () => clearTimeout(t);
+  }, [todayFlash]);
+
   const todayFull = todayStr();
 
   // renders one month's dow-row + week grid (used twice, stacked vertically)
@@ -2328,7 +2359,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
                 // that have nothing scheduled for it at all
                 const weekSiteList = weekSites[wi];
                 return (
-                  <div className={"week-row" + weekParity} key={wi}>
+                  <div className={"week-row" + weekParity} key={wi} data-start={dateStrs.find(Boolean)} data-end={[...dateStrs].reverse().find(Boolean)}>
                     <div className="cal-grid has-labels cal-date-row">
                       <div className="cal-dow-spacer" />
                       {weekDays.map((cell, di) => {
@@ -2550,6 +2581,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
             <SiteMultiSelect sites={sites} selectedSiteIds={selectedSiteIds} onChange={ids=>{setSelectedSiteIds(ids); setSelectedDate(null);}} />
           </div>
           <div className="cal-nav">
+            <button className="cal-today-btn" onClick={goToday} title="이번 달로 가서 오늘 일정으로 이동">오늘</button>
             <button onClick={()=>changeMonth(-1)}>‹</button>
             <span className="cal-month">{cursor.y}.{pad(cursor.m+1)} - {addMonths(cursor,1).y}.{pad(addMonths(cursor,1).m+1)}</span>
             <button onClick={()=>changeMonth(1)}>›</button>
