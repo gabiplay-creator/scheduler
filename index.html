@@ -411,6 +411,29 @@
     body.printing .cal-month-badge{position:static;}
   }
 
+  /* 지급내역 */
+  .pay-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+  .pay-stat{background:var(--card);border:1px solid var(--paper-line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;}
+  .pay-stat span{font-size:12px;font-weight:700;color:var(--ink-soft);}
+  .pay-stat b{font-family:var(--mono);font-size:19px;color:var(--navy);font-variant-numeric:tabular-nums;}
+  .pay-stat.alert b{color:var(--danger);}
+  @media (max-width:640px){ .pay-stats{grid-template-columns:1fr;} }
+  .pay-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .pay-table th{text-align:left;font-size:11.5px;color:var(--ink-soft);font-weight:700;padding:9px 10px;border-bottom:1px solid var(--paper-line);background:var(--paper);white-space:nowrap;}
+  .pay-table td{padding:8px 10px;border-bottom:1px solid var(--paper-line);vertical-align:top;}
+  .pay-table .r{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  .pay-table .left{color:var(--danger);font-weight:800;}
+  .pay-table .nowrap{white-space:nowrap;}
+  .pay-table .sub{font-size:11px;color:var(--ink-soft);font-weight:500;}
+  .pay-table .memo{font-size:12px;color:var(--ink-soft);min-width:220px;max-width:340px;}
+  .pay-table tr.click{cursor:pointer;}
+  .pay-table tr.click:hover td{background:rgba(0,0,0,.025);}
+  .pay-status{border:none;border-radius:999px;padding:4px 8px;font-size:12px;font-weight:700;cursor:pointer;}
+  .pay-status.ok{background:#d9f0dd;color:#1e5b2b;}
+  .pay-status.part{background:#fbefc2;color:#6b5207;}
+  .pay-status.wait{background:#d8e6fb;color:#1f477e;}
+  .pay-status.check{background:#f8d9d6;color:#8a2a20;}
+
   /* 출근 인원 칸 (현장별 맨 아래 줄) */
   .day-note-cell{border:1px solid var(--excel-line-soft);border-top:1px dashed var(--excel-line-soft);min-height:18px;display:flex;}
   .day-note-cell{cursor:pointer;align-items:center;}
@@ -884,6 +907,8 @@ function App(){
   const [dayNotes, setDayNotes] = useSyncedState("dayNotes", []);
   // 상단 바로가기 버튼(견적서 · 욕실자재견적서) 주소 — 모든 직원이 같이 씀
   const [quickLinks, setQuickLinks] = useSyncedState("quickLinks", []);
+  // 지급내역 (누구에게 얼마 줬는지) — 담당자관리 탭
+  const [payments, setPayments] = useSyncedState("payments", []);
   const [synced, setSynced] = useState(false);
 
   useEffect(() => { setSynced(fbReady()); }, []);
@@ -993,7 +1018,7 @@ function App(){
           <VendorsTab vendors={vendors} setVendors={setVendors} />
         )}
         {tab==="labor" && (
-          <LaborTab trades={visibleTrades} sites={sites} schedules={schedules} dayNotes={dayNotes} />
+          <LaborTab trades={visibleTrades} sites={sites} schedules={schedules} dayNotes={dayNotes} setDayNotes={setDayNotes} payments={payments} setPayments={setPayments} />
         )}
       </div>
 
@@ -1701,8 +1726,8 @@ function formatWageShort(w){
 function formatWorkers(note){
   if(!note) return "";
   const ws = (note.workers||[]).filter(x => x.name);
-  if(ws.length) return ws.map(x => x.name + (formatWageShort(x.wage) ? `(${formatWageShort(x.wage)})` : "")).join(", ");
-  return note.text || "";
+  const names = ws.map(x => x.name + (formatWageShort(x.wage) ? `(${formatWageShort(x.wage)})` : "")).join(", ");
+  return [names, note.text].filter(Boolean).join(" · ");
 }
 
 function DayWorkerCell({ note, onClick, style }){
@@ -3150,7 +3175,952 @@ function SitePayroll({ sites, dayNotes, monthStart, monthEnd }){
   );
 }
 
-function LaborTab({ trades, sites, schedules, dayNotes }){
+// 10/24~11/10 카톡(일보·이체 요청)을 정리한 데이터 — '카톡 정리 가져오기' 버튼이 한 번 씁니다
+const KAKAO_IMPORT_1110 = {
+"payments": [
+{
+"id": "kt1110-01",
+"date": "2026-10-24",
+"name": "정수",
+"trade": "잡부",
+"site": "군포·풍림·소사주공·중흥",
+"amount": 180000,
+"deduction": null,
+"paid": 180000,
+"status": "지급완료",
+"bank": "",
+"memo": "10/24(토) 일당. 군포 AS, 풍림·주공 공구정리, 중흥 갖다놓기, 부동산 창고정리"
+},
+{
+"id": "kt1110-02",
+"date": "2026-10-26",
+"name": "강동혁 (추정)",
+"trade": "목공",
+"site": "",
+"amount": 300000,
+"deduction": null,
+"paid": 300000,
+"status": "지급완료",
+"bank": "제주은행",
+"memo": "'목공 30만 이체함 제주은행' — 이름이 없어서 11/4 목공(제주은행 강동혁)과 같은 사람으로 추정"
+},
+{
+"id": "kt1110-03",
+"date": "2026-10-26",
+"name": "최호철",
+"trade": "기공",
+"site": "소사주공·중흥",
+"amount": 400000,
+"deduction": null,
+"paid": 400000,
+"status": "지급완료",
+"bank": "",
+"memo": "2일 × 20만 (소사주공 1, 중흥 1). 정산완료"
+},
+{
+"id": "kt1110-04",
+"date": "2026-10-26",
+"name": "이강용",
+"trade": "기공",
+"site": "양재·한신·소사주공·중흥",
+"amount": 5100000,
+"deduction": null,
+"paid": null,
+"status": "고객입금예정",
+"bank": "",
+"memo": "17일 × 30만 (양재 14일, 한신·주공·중흥 각 1일). '30일 고객입금'"
+},
+{
+"id": "kt1110-05",
+"date": "2026-10-27",
+"name": "(이름 없음)",
+"trade": "미상",
+"site": "한라주공(군포)",
+"amount": 200000,
+"deduction": null,
+"paid": 200000,
+"status": "지급완료",
+"bank": "",
+"memo": "'군포 20만 보내주세요' (사진 첨부)"
+},
+{
+"id": "kt1110-06",
+"date": "2026-10-27",
+"name": "건재 (자재)",
+"trade": "자재",
+"site": "소사풍림·소사주공",
+"amount": null,
+"deduction": null,
+"paid": null,
+"status": "지급완료",
+"bank": "",
+"memo": "금액은 사진에만 있음 → 사진 보고 금액 채우기"
+},
+{
+"id": "kt1110-07",
+"date": "2026-10-27",
+"name": "(사진)",
+"trade": "미상",
+"site": "",
+"amount": null,
+"deduction": null,
+"paid": null,
+"status": "확인필요",
+"bank": "",
+"memo": "사진 2장 + '이체해주세요' — 누구에게 얼마인지 카톡 글에는 없음"
+},
+{
+"id": "kt1110-08",
+"date": "2026-10-27",
+"name": "배상옥",
+"trade": "배관설비",
+"site": "",
+"amount": 1650000,
+"deduction": null,
+"paid": 1650000,
+"status": "지급완료",
+"bank": "새마을금고",
+"memo": "부가세 포함 165만"
+},
+{
+"id": "kt1110-09",
+"date": "2026-10-27",
+"name": "이소장님",
+"trade": "보너스",
+"site": "",
+"amount": 500000,
+"deduction": null,
+"paid": null,
+"status": "확인필요",
+"bank": "",
+"memo": "'이소장님 30+20만? 보나스' → '그래'. 실제 이체 여부 확인 (10/28 깔꼼청구엔 이소장님 55만으로 적힘)"
+},
+{
+"id": "kt1110-10",
+"date": "2026-10-29",
+"name": "홍준식",
+"trade": "인력",
+"site": "",
+"amount": 540000,
+"deduction": 0,
+"paid": 540000,
+"status": "지급완료",
+"bank": "우리은행",
+"memo": "3공수 × 18만. 이번엔 공제 없이 지급, 다음부터 3.3% 공제 후 입금"
+},
+{
+"id": "kt1110-11",
+"date": "2026-10-29",
+"name": "역곡전기반장",
+"trade": "전기",
+"site": "",
+"amount": 200000,
+"deduction": null,
+"paid": 200000,
+"status": "지급완료",
+"bank": "",
+"memo": "10/26 일당"
+},
+{
+"id": "kt1110-12",
+"date": "2026-10-29",
+"name": "윤일로",
+"trade": "필름",
+"site": "한라주공(군포)",
+"amount": 406000,
+"deduction": null,
+"paid": 406000,
+"status": "지급완료",
+"bank": "미래에셋증권",
+"memo": "25만 + 추가 156,000"
+},
+{
+"id": "kt1110-13",
+"date": "2026-10-29",
+"name": "입주청소",
+"trade": "입주청소",
+"site": "양재 한아름",
+"amount": 424000,
+"deduction": null,
+"paid": 424000,
+"status": "지급완료",
+"bank": "",
+"memo": "청소 합계 838,000 중 양재분"
+},
+{
+"id": "kt1110-14",
+"date": "2026-10-29",
+"name": "입주청소",
+"trade": "입주청소",
+"site": "한라주공(군포)",
+"amount": 414000,
+"deduction": null,
+"paid": 414000,
+"status": "지급완료",
+"bank": "",
+"memo": "청소 합계 838,000 중 한라주공분"
+},
+{
+"id": "kt1110-15",
+"date": "2026-10-30",
+"name": "정수",
+"trade": "잡부",
+"site": "여러 현장",
+"amount": 1089000,
+"deduction": null,
+"paid": 1000000,
+"status": "일부지급",
+"bank": "",
+"memo": "10/26~10/30 정산. 손님 통해 100만 지급, 89,000은 11/6 정산으로 넘어감"
+},
+{
+"id": "kt1110-16",
+"date": "2026-10-31",
+"name": "전기 (반장 우식 추정)",
+"trade": "전기",
+"site": "",
+"amount": 1700000,
+"deduction": 54450,
+"paid": 1645550,
+"status": "지급완료",
+"bank": "",
+"memo": "5품 150만 + 야근 15만 = 165만 → 3.3% 공제 1,595,550 + 식대 5만 별도"
+},
+{
+"id": "kt1110-17",
+"date": "2026-10-31",
+"name": "윤일로",
+"trade": "필름",
+"site": "한라주공·양재·풍림",
+"amount": 1500000,
+"deduction": null,
+"paid": 1500000,
+"status": "지급완료",
+"bank": "미래에셋증권",
+"memo": "한라주공 45 + 양재 51 + 풍림 55 = 151만 → 150만만 받음 (1만원은 빼줌)"
+},
+{
+"id": "kt1110-18",
+"date": "2026-11-01",
+"name": "성시운",
+"trade": "인력",
+"site": "여러 현장",
+"amount": 540000,
+"deduction": 17820,
+"paid": 522180,
+"status": "지급완료",
+"bank": "지역농협",
+"memo": "3일 × 18만. 양중 및 폐기물 정리"
+},
+{
+"id": "kt1110-19",
+"date": "2026-11-03",
+"name": "김재숙",
+"trade": "설비자재",
+"site": "",
+"amount": 96800,
+"deduction": null,
+"paid": 96800,
+"status": "지급완료",
+"bank": "신협",
+"memo": "설비자재"
+},
+{
+"id": "kt1110-20",
+"date": "2026-11-04",
+"name": "강동혁",
+"trade": "목공",
+"site": "중흥·소사주공",
+"amount": 2000000,
+"deduction": 66000,
+"paid": 1934000,
+"status": "지급완료",
+"bank": "제주은행",
+"memo": "목공 200만, 3.3% 공제 (주공·중흥 마무리, 창고 가벽)"
+},
+{
+"id": "kt1110-21",
+"date": "2026-11-04",
+"name": "신재욱",
+"trade": "설비·보조",
+"site": "중흥",
+"amount": 818000,
+"deduction": 26994,
+"paid": 791006,
+"status": "지급완료",
+"bank": "토스뱅크",
+"memo": "설비2 50만 + 인력 18만 + 자재비 138,000(68,000 + 45,000 + 배송 25,000). 자재비에도 3.3% 공제가 들어감"
+},
+{
+"id": "kt1110-22",
+"date": "2026-11-04",
+"name": "장호준",
+"trade": "배관교체 등 (추정)",
+"site": "한라주공(군포)",
+"amount": 2200000,
+"deduction": null,
+"paid": 2200000,
+"status": "지급완료",
+"bank": "기업은행",
+"memo": "220만. 10/28 '깔꼼청구: 배관교체 165 + 이소장님 55 = 220'과 같은 금액"
+},
+{
+"id": "kt1110-23",
+"date": "2026-11-04",
+"name": "최환석",
+"trade": "타일",
+"site": "소사풍림·소사주공",
+"amount": 5000000,
+"deduction": null,
+"paid": 5000000,
+"status": "지급완료",
+"bank": "국민은행",
+"memo": "풍림 10/21~27 2,435,000(5품 175 + 야근2 30 + 기공1 35 + 식대3 3.5) + 주공분 합산. 카톡에 '(815000)' 표기 — 의미 확인"
+},
+{
+"id": "kt1110-24",
+"date": "2026-11-04",
+"name": "전기반장님",
+"trade": "전기",
+"site": "",
+"amount": null,
+"deduction": null,
+"paid": null,
+"status": "확인필요",
+"bank": "",
+"memo": "'전기반장님 정산' 사진만 있음 — 금액 확인"
+},
+{
+"id": "kt1110-25",
+"date": "2026-11-06",
+"name": "전기",
+"trade": "전기",
+"site": "소사풍림",
+"amount": 300000,
+"deduction": null,
+"paid": null,
+"status": "확인필요",
+"bank": "",
+"memo": "풍림 마감 전기 30만 (출근기록) — 지급 여부 확인"
+},
+{
+"id": "kt1110-26",
+"date": "2026-11-06",
+"name": "역곡전기반장",
+"trade": "전기",
+"site": "소사풍림",
+"amount": 200000,
+"deduction": null,
+"paid": null,
+"status": "확인필요",
+"bank": "",
+"memo": "풍림 마감 '역곡사장님 20만' (출근기록) — 지급 여부 확인"
+},
+{
+"id": "kt1110-27",
+"date": "2026-11-06",
+"name": "정수",
+"trade": "잡부",
+"site": "여러 현장",
+"amount": 1204400,
+"deduction": null,
+"paid": null,
+"status": "확인필요",
+"bank": "",
+"memo": "11/1~11/6 정산. 카톡 합계 1,293,400 = 이번 주 1,204,400 + 지난 미수 89,000"
+},
+{
+"id": "kt1110-28",
+"date": "2026-11-09",
+"name": "사다리차",
+"trade": "운반",
+"site": "중흥",
+"amount": 120000,
+"deduction": null,
+"paid": 120000,
+"status": "지급완료",
+"bank": "",
+"memo": "중흥 엘리베이터 고장"
+},
+{
+"id": "kt1110-29",
+"date": "2026-11-09",
+"name": "임태경 (태경로지스)",
+"trade": "운송료",
+"site": "",
+"amount": 30000,
+"deduction": null,
+"paid": 30000,
+"status": "지급완료",
+"bank": "카카오뱅크",
+"memo": "욕실장 운송 (추정)"
+}
+],
+"days": [
+{
+"date": "2026-10-24",
+"site": "한라주공",
+"workers": [
+{
+"name": "정수",
+"wage": 180000
+}
+]
+},
+{
+"date": "2026-10-26",
+"site": "한라주공",
+"workers": [
+{
+"name": "정수",
+"wage": 230000
+}
+]
+},
+{
+"date": "2026-10-27",
+"site": "중흥",
+"workers": [
+{
+"name": "정수",
+"wage": 230000
+}
+]
+},
+{
+"date": "2026-10-28",
+"site": "풍림",
+"workers": [
+{
+"name": "정수",
+"wage": 180000
+}
+]
+},
+{
+"date": "2026-10-29",
+"site": "풍림",
+"workers": [
+{
+"name": "정수",
+"wage": 250000
+}
+]
+},
+{
+"date": "2026-10-30",
+"site": "중흥",
+"workers": [
+{
+"name": "정수",
+"wage": 199000
+}
+]
+},
+{
+"date": "2026-11-01",
+"site": "소사주공",
+"workers": [
+{
+"name": "정수",
+"wage": 50000
+}
+]
+},
+{
+"date": "2026-11-02",
+"site": "소사주공",
+"workers": [
+{
+"name": "정수",
+"wage": 284400
+}
+]
+},
+{
+"date": "2026-11-03",
+"site": "풍림",
+"workers": [
+{
+"name": "정수",
+"wage": 230000
+}
+]
+},
+{
+"date": "2026-11-04",
+"site": "풍림",
+"workers": [
+{
+"name": "정수",
+"wage": 230000
+}
+]
+},
+{
+"date": "2026-11-05",
+"site": "소사주공",
+"workers": [
+{
+"name": "정수",
+"wage": 230000
+}
+]
+},
+{
+"date": "2026-11-06",
+"site": "풍림",
+"workers": [
+{
+"name": "정수",
+"wage": 180000
+}
+]
+},
+{
+"date": "2026-10-26",
+"site": "풍림",
+"text": "타일 1"
+},
+{
+"date": "2026-10-26",
+"site": "소사주공",
+"text": "목공 1"
+},
+{
+"date": "2026-10-26",
+"site": "중흥",
+"text": "전기 1"
+},
+{
+"date": "2026-10-26",
+"site": "한라주공",
+"text": "마감 인원 3"
+},
+{
+"date": "2026-10-27",
+"site": "중흥",
+"text": "목공 2 (기공 초목)"
+},
+{
+"date": "2026-10-27",
+"site": "소사주공",
+"text": "전기 1, 타일 1"
+},
+{
+"date": "2026-10-27",
+"site": "풍림",
+"text": "타일 1"
+},
+{
+"date": "2026-10-28",
+"site": "소사주공",
+"text": "타일 1"
+},
+{
+"date": "2026-10-28",
+"site": "중흥",
+"text": "목공 1, 전기 1"
+},
+{
+"date": "2026-10-29",
+"site": "풍림",
+"text": "필름 2?"
+},
+{
+"date": "2026-10-29",
+"site": "소사주공",
+"text": "타일 1"
+},
+{
+"date": "2026-10-29",
+"site": "중흥",
+"text": "목공 2, 전기 1 (CD관 삽입)"
+},
+{
+"date": "2026-10-30",
+"site": "풍림",
+"text": "타일 2"
+},
+{
+"date": "2026-10-30",
+"site": "중흥",
+"text": "필름 2, 전기 1"
+},
+{
+"date": "2026-11-02",
+"site": "풍림",
+"text": "가구"
+},
+{
+"date": "2026-11-02",
+"site": "소사주공",
+"text": "타일 1"
+},
+{
+"date": "2026-11-02",
+"site": "중흥",
+"text": "목공 1, 설비 1"
+},
+{
+"date": "2026-11-02",
+"site": "한라주공",
+"text": "전기반장 1 (오후)"
+},
+{
+"date": "2026-11-02",
+"site": "강나루",
+"text": "철거 3"
+},
+{
+"date": "2026-11-03",
+"site": "풍림",
+"text": "가구, 도기, 도배"
+},
+{
+"date": "2026-11-03",
+"site": "중흥",
+"text": "설비 1, 보조 1, 목공 1"
+},
+{
+"date": "2026-11-04",
+"site": "풍림",
+"text": "도배, 903호 도기 (이강용, 최호철)"
+},
+{
+"date": "2026-11-04",
+"site": "소사주공",
+"text": "중문"
+},
+{
+"date": "2026-11-04",
+"site": "중흥",
+"text": "타일"
+},
+{
+"date": "2026-11-04",
+"site": "가양",
+"text": "샷시"
+},
+{
+"date": "2026-11-05",
+"site": "풍림",
+"text": "도배"
+},
+{
+"date": "2026-11-05",
+"site": "중흥",
+"text": "타일"
+},
+{
+"date": "2026-11-05",
+"site": "가양",
+"text": "설비 철거 마무리 — 윤진하, 이강용, 전기 1"
+},
+{
+"date": "2026-11-06",
+"site": "소사주공",
+"text": "싱크 상판"
+},
+{
+"date": "2026-11-06",
+"site": "중흥",
+"text": "타일 1"
+},
+{
+"date": "2026-11-09",
+"site": "소사주공",
+"text": "도배"
+},
+{
+"date": "2026-11-09",
+"site": "중흥",
+"text": "타일 1, 도기"
+},
+{
+"date": "2026-11-10",
+"site": "풍림",
+"text": "장판"
+},
+{
+"date": "2026-11-10",
+"site": "소사주공",
+"text": "도배"
+},
+{
+"date": "2026-11-10",
+"site": "중흥",
+"text": "가구"
+},
+{
+"date": "2026-11-06",
+"site": "풍림",
+"text": "마감",
+"workers": [
+{
+"name": "전기",
+"wage": 300000
+},
+{
+"name": "역곡사장님",
+"wage": 200000
+}
+]
+}
+],
+"skipped": [
+"10/26 전기반장(우식) 25만 야근, 역곡전기반장 20만 — 현장이 안 적혀 있음",
+"10/27 일용직 18만 — 현장이 안 적혀 있음",
+"10/29 인력 1 · 10/30 인부 1 — 현장이 안 적혀 있음",
+"11/4~11/10 정수·동준 출근 — 현장이 안 적혀 있음 (11/9·11/10 정수 일당은 아직 정산 전)"
+]
+};
+
+/* ---------- 지급내역 (누구에게 얼마 줬는지) ---------- */
+const PAY_STATUSES = ["지급완료","일부지급","고객입금예정","확인필요"];
+const PAY_STATUS_CLASS = { "지급완료":"ok", "일부지급":"part", "고객입금예정":"wait", "확인필요":"check" };
+const num = v => (v==null || v==="" || isNaN(Number(v))) ? 0 : Number(v);
+const fmtWon = v => (v==null || v==="") ? "-" : Number(v).toLocaleString("ko-KR");
+// 남은 금액: 지급완료가 아닌 건만 (청구 - 공제 - 실지급)
+const payRemaining = p => p.status==="지급완료" ? 0 : Math.max(0, num(p.amount) - num(p.deduction) - num(p.paid));
+
+// 카톡 정리 가져오기: 현장 이름 일부(풍림·중흥 …)로 스케줄러의 현장을 찾습니다
+function findSiteByKeyword(sites, keyword){
+  const k = keyword.replace(/\s+/g, "");
+  return sites.find(s => (s.name||"").replace(/\s+/g, "").includes(k)) || null;
+}
+function mergeDayNote(existing, add, siteId){
+  const base = existing ? { ...existing, workers: [...(existing.workers||[])] } : { id: `${siteId}_${add.date}`, siteId, date: add.date, workers: [], text: "" };
+  (add.workers||[]).forEach(w => { if(!base.workers.some(x => x.name===w.name)) base.workers.push({ name: w.name, wage: w.wage }); });
+  if(add.text){
+    const cur = base.text || "";
+    if(!cur.includes(add.text)) base.text = cur ? `${cur} / ${add.text}` : add.text;
+  }
+  return base;
+}
+
+function PaymentEditModal({ initial, onClose, onSave, onDelete }){
+  const [f, setF] = useState(() => ({
+    date: initial?.date || todayStr(), name: initial?.name || "", trade: initial?.trade || "", site: initial?.site || "",
+    amount: initial?.amount ?? "", deduction: initial?.deduction ?? "", paid: initial?.paid ?? "",
+    status: initial?.status || "지급완료", bank: initial?.bank || "", memo: initial?.memo || "",
+  }));
+  const set = (k, v) => setF(prev => ({ ...prev, [k]: v }));
+  const toNum = v => v==="" || v==null ? null : Number(v);
+  function apply33(){
+    const ded = Math.round(num(f.amount) * 0.033);
+    setF(prev => ({ ...prev, deduction: String(ded), paid: String(num(prev.amount) - ded) }));
+  }
+  function submit(){
+    if(!f.name.trim()){ alert("받는 사람을 입력해주세요."); return; }
+    onSave({ ...f, name: f.name.trim(), amount: toNum(f.amount), deduction: toNum(f.deduction), paid: toNum(f.paid) });
+  }
+  return (
+    <div className="overlay" onClick={e=>e.target===e.currentTarget && onClose()}>
+      <div className="modal" style={{maxWidth:560}}>
+        <div className="modal-head">
+          <div>
+            <p className="eyebrow">PAYMENT</p>
+            <h3>{initial ? "지급 내역 수정" : "지급 내역 추가"}</h3>
+          </div>
+          <button className="close-x" onClick={onClose}>✕</button>
+        </div>
+        <div className="row2">
+          <div className="field"><label>날짜</label><input type="date" value={f.date} onChange={e=>set("date", e.target.value)} /></div>
+          <div className="field"><label>받는 사람</label><input type="text" value={f.name} onChange={e=>set("name", e.target.value)} placeholder="예: 강동혁" /></div>
+        </div>
+        <div className="row2">
+          <div className="field"><label>공종</label><input type="text" value={f.trade} onChange={e=>set("trade", e.target.value)} placeholder="예: 목공" /></div>
+          <div className="field"><label>현장</label><input type="text" value={f.site} onChange={e=>set("site", e.target.value)} placeholder="예: 중흥" /></div>
+        </div>
+        <div className="row2">
+          <div className="field"><label>청구액 (원)</label><input type="number" min="0" step="10000" value={f.amount} onChange={e=>set("amount", e.target.value)} /></div>
+          <div className="field">
+            <label>3.3% 공제 (원) <button type="button" className="btn btn-ghost btn-sm" style={{marginLeft:6, padding:"2px 8px"}} onClick={apply33}>3.3% 계산</button></label>
+            <input type="number" min="0" value={f.deduction} onChange={e=>set("deduction", e.target.value)} />
+          </div>
+        </div>
+        <div className="row2">
+          <div className="field"><label>실지급액 (원)</label><input type="number" min="0" value={f.paid} onChange={e=>set("paid", e.target.value)} /></div>
+          <div className="field">
+            <label>상태</label>
+            <select value={f.status} onChange={e=>set("status", e.target.value)}>{PAY_STATUSES.map(s => <option key={s}>{s}</option>)}</select>
+          </div>
+        </div>
+        <div className="row2">
+          <div className="field"><label>은행</label><input type="text" value={f.bank} onChange={e=>set("bank", e.target.value)} placeholder="예: 제주은행" /></div>
+          <div className="field"><label>메모</label><input type="text" value={f.memo} onChange={e=>set("memo", e.target.value)} /></div>
+        </div>
+        <div className="modal-footer" style={{justifyContent:"space-between"}}>
+          {initial ? <button className="btn btn-danger" onClick={onDelete}>삭제</button> : <span />}
+          <div style={{display:"flex", gap:8}}>
+            <button className="btn btn-ghost" onClick={onClose}>취소</button>
+            <button className="btn btn-primary" onClick={submit}>저장</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaymentsSection({ payments, setPayments, sites, dayNotes, setDayNotes }){
+  const [filter, setFilter] = useState("open"); // open = 아직 안 끝난 것만
+  const [editing, setEditing] = useState(null); // payment | "new"
+  const [showPeople, setShowPeople] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const imported = payments.some(p => String(p.id).startsWith("kt1110-"));
+
+  const sorted = [...payments].sort((a,b) => (b.date||"").localeCompare(a.date||"") || String(b.id).localeCompare(String(a.id)));
+  const list = filter==="open" ? sorted.filter(p => p.status!=="지급완료") : sorted;
+  const totalAmount = payments.reduce((s,p) => s + num(p.amount), 0);
+  const totalPaid = payments.reduce((s,p) => s + num(p.paid), 0);
+  const totalLeft = payments.reduce((s,p) => s + payRemaining(p), 0);
+
+  const people = {};
+  payments.forEach(p => {
+    const key = p.name || "(이름 없음)";
+    const r = (people[key] = people[key] || { count:0, amount:0, deduction:0, paid:0, left:0, trade: p.trade });
+    r.count++; r.amount += num(p.amount); r.deduction += num(p.deduction); r.paid += num(p.paid); r.left += payRemaining(p);
+  });
+  const peopleList = Object.entries(people).sort((a,b) => b[1].amount - a[1].amount);
+
+  function save(p){
+    if(editing==="new") setPayments(prev => [...prev, { ...p, id: "pay-" + uid() }]);
+    else setPayments(prev => prev.map(x => x.id===editing.id ? { ...x, ...p } : x));
+    setEditing(null);
+  }
+  function setStatus(id, status){ setPayments(prev => prev.map(x => x.id===id ? { ...x, status } : x)); }
+
+  function runImport(){
+    const data = KAKAO_IMPORT_1110;
+    // 1) 지급내역
+    setPayments(prev => {
+      const have = new Set(prev.map(p => p.id));
+      return [...prev, ...data.payments.filter(p => !have.has(p.id))];
+    });
+    // 2) 캘린더 '인원' 칸
+    const skipped = [...data.skipped];
+    const byId = Object.fromEntries(dayNotes.map(n => [n.id, n]));
+    const filledIds = new Set();
+    data.days.forEach(d => {
+      const site = findSiteByKeyword(sites, d.site);
+      if(!site){ skipped.push(`${d.date.slice(5).replace("-","/")} ${d.site} — 스케줄러에 '${d.site}' 현장이 없음: ${d.text || ""}`); return; }
+      const id = `${site.id}_${d.date}`;
+      byId[id] = mergeDayNote(byId[id], d, site.id);
+      filledIds.add(id);
+    });
+    setDayNotes(Object.values(byId));
+    setImportResult({ payments: data.payments.length, filled: filledIds.size, skipped });
+  }
+
+  return (
+    <div style={{marginBottom:32}}>
+      <div className="section-head" style={{marginBottom:10}}>
+        <div>
+          <p className="eyebrow">PAYMENTS / 지급내역</p>
+          <h2>누구에게 얼마 줬나</h2>
+        </div>
+        <div style={{display:"flex", gap:8, flexWrap:"wrap", alignItems:"center"}}>
+          {!imported && <button className="btn btn-ghost" onClick={runImport} title="10/24~11/10 카톡 일당·지급 내역을 지급내역과 캘린더 인원 칸에 넣기">📥 카톡 정리 가져오기 (10/24~11/10)</button>}
+          <button className="btn btn-primary" onClick={()=>setEditing("new")}>+ 지급 추가</button>
+        </div>
+      </div>
+
+      <div className="pay-stats">
+        <div className="pay-stat"><span>청구액 합계</span><b>{fmtWon(totalAmount)}원</b></div>
+        <div className="pay-stat"><span>실제 지급</span><b>{fmtWon(totalPaid)}원</b></div>
+        <div className="pay-stat alert"><span>아직 안 준 돈 (확인 필요 포함)</span><b>{fmtWon(totalLeft)}원</b></div>
+      </div>
+
+      <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, flexWrap:"wrap", margin:"14px 0 8px"}}>
+        <div className="view-toggle">
+          <button className={filter==="open"?"active":""} onClick={()=>setFilter("open")}>안 끝난 것만 ({payments.filter(p=>p.status!=="지급완료").length})</button>
+          <button className={filter==="all"?"active":""} onClick={()=>setFilter("all")}>전체 ({payments.length})</button>
+        </div>
+        <button className="btn btn-ghost btn-sm" onClick={()=>setShowPeople(v=>!v)}>{showPeople ? "사람별 합계 닫기" : "사람별 합계 보기"}</button>
+      </div>
+
+      {showPeople && (
+        <div className="card" style={{marginBottom:12, overflowX:"auto"}}>
+          <table className="pay-table">
+            <thead><tr><th>받는 사람</th><th>공종</th><th className="r">건수</th><th className="r">청구액</th><th className="r">공제</th><th className="r">실지급</th><th className="r">남은 금액</th></tr></thead>
+            <tbody>
+              {peopleList.map(([name, r]) => (
+                <tr key={name}>
+                  <td><b>{name}</b></td><td>{r.trade}</td><td className="r">{r.count}</td>
+                  <td className="r">{fmtWon(r.amount)}</td><td className="r">{r.deduction ? fmtWon(r.deduction) : "-"}</td>
+                  <td className="r">{fmtWon(r.paid)}</td><td className={"r" + (r.left ? " left" : "")}>{r.left ? fmtWon(r.left) : "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {list.length===0 ? (
+        <div className="empty">{payments.length===0
+          ? <>아직 지급내역이 없어요.<br/>"+ 지급 추가"로 넣거나{!imported && <>, 위의 "카톡 정리 가져오기"로 10/24~11/10 내역을 한 번에 넣을 수 있어요</>}.</>
+          : "안 끝난 지급이 없어요. 모두 지급완료예요."}</div>
+      ) : (
+        <div className="card" style={{overflowX:"auto", padding:0}}>
+          <table className="pay-table">
+            <thead><tr><th>날짜</th><th>받는 사람</th><th>공종</th><th>현장</th><th className="r">청구액</th><th className="r">공제</th><th className="r">실지급</th><th>상태</th><th>메모</th></tr></thead>
+            <tbody>
+              {list.map(p => (
+                <tr key={p.id} className="click" onClick={()=>setEditing(p)} title="눌러서 수정">
+                  <td className="nowrap">{(p.date||"").slice(5).replace("-","/")}</td>
+                  <td className="nowrap"><b>{p.name}</b>{p.bank && <div className="sub">{p.bank}</div>}</td>
+                  <td>{p.trade}</td>
+                  <td>{p.site}</td>
+                  <td className="r">{fmtWon(p.amount)}</td>
+                  <td className="r">{p.deduction ? fmtWon(p.deduction) : "-"}</td>
+                  <td className="r">{fmtWon(p.paid)}</td>
+                  <td onClick={e=>e.stopPropagation()}>
+                    <select className={"pay-status " + (PAY_STATUS_CLASS[p.status]||"")} value={p.status} onChange={e=>setStatus(p.id, e.target.value)}>
+                      {PAY_STATUSES.map(s => <option key={s}>{s}</option>)}
+                    </select>
+                  </td>
+                  <td className="memo">{p.memo}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {editing && (
+        <PaymentEditModal
+          initial={editing==="new" ? null : editing}
+          onClose={()=>setEditing(null)}
+          onSave={save}
+          onDelete={()=>{ setPayments(prev => prev.filter(x => x.id!==editing.id)); setEditing(null); }}
+        />
+      )}
+
+      {importResult && (
+        <div className="overlay" onClick={e=>e.target===e.currentTarget && setImportResult(null)}>
+          <div className="modal" style={{maxWidth:560}}>
+            <div className="modal-head">
+              <div><p className="eyebrow">IMPORT</p><h3>카톡 정리 가져오기 완료</h3></div>
+              <button className="close-x" onClick={()=>setImportResult(null)}>✕</button>
+            </div>
+            <p style={{fontSize:14, margin:"0 0 10px"}}>지급내역 <b>{importResult.payments}건</b>, 캘린더 인원 칸 <b>{importResult.filled}곳</b>을 넣었어요.</p>
+            <p style={{fontSize:13, color:"var(--ink-soft)", margin:"0 0 6px"}}>정수 씨 일당은 그날 처음 적힌 현장의 인원 칸에 넣었어요. 다른 현장이면 칸을 눌러 옮겨주세요.</p>
+            {importResult.skipped.length>0 && (
+              <>
+                <p style={{fontSize:13, fontWeight:700, margin:"12px 0 6px"}}>현장을 몰라서 캘린더에 넣지 못한 것</p>
+                <ul style={{fontSize:13, margin:0, paddingLeft:18, color:"var(--ink-soft)"}}>{importResult.skipped.map((s,i) => <li key={i}>{s}</li>)}</ul>
+              </>
+            )}
+            <div className="modal-footer"><button className="btn btn-primary" onClick={()=>setImportResult(null)}>확인</button></div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LaborTab({ trades, sites, schedules, dayNotes, setDayNotes, payments, setPayments }){
   const [cursor, setCursor] = useState(() => { const d = new Date(); return {y: d.getFullYear(), m: d.getMonth()}; });
 
   function changeMonth(delta){
@@ -3202,6 +4172,8 @@ function LaborTab({ trades, sites, schedules, dayNotes }){
           <button onClick={()=>changeMonth(1)}>›</button>
         </div>
       </div>
+
+      <PaymentsSection payments={payments} setPayments={setPayments} sites={sites} dayNotes={dayNotes} setDayNotes={setDayNotes} />
 
       <SitePayroll sites={sites} dayNotes={dayNotes} monthStart={monthStart} monthEnd={monthEnd} />
 
