@@ -411,6 +411,29 @@
     body.printing .cal-month-badge{position:static;}
   }
 
+  /* 확인사항 (텔레그램) */
+  .tab-badge{display:inline-block;margin-left:6px;min-width:18px;padding:1px 6px;border-radius:999px;background:var(--accent);color:#fff;font-size:11px;font-weight:800;line-height:16px;text-align:center;}
+  .tg-msg{margin-bottom:12px;}
+  .tg-msg.done{opacity:.72;}
+  .tg-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-size:13px;color:var(--ink-soft);margin-bottom:6px;}
+  .tg-head b{color:var(--navy);font-size:14px;}
+  .tg-chat{font-size:12px;}
+  .tg-tag{font-size:11.5px;font-weight:700;background:var(--paper);border:1px solid var(--paper-line);border-radius:999px;padding:1px 8px;}
+  .tg-tag.photo{color:var(--navy);}
+  .tg-reply{font-size:12.5px;color:var(--ink-soft);border-left:3px solid var(--paper-line);padding-left:8px;margin-bottom:6px;}
+  .tg-text{white-space:pre-wrap;font-size:14px;line-height:1.55;color:var(--ink);}
+  .tg-box{margin-top:10px;border:1px solid var(--paper-line);border-radius:10px;padding:10px 12px;background:var(--paper);}
+  .tg-box-title{font-size:12.5px;font-weight:800;color:var(--navy);margin-bottom:8px;}
+  .tg-seg{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
+  .tg-seg input[type=date]{width:160px;padding:5px 8px;border:1px solid var(--paper-line);border-radius:6px;background:var(--card);}
+  .tg-row{display:grid;grid-template-columns:auto minmax(140px,220px) minmax(0,1fr);gap:8px;align-items:center;}
+  .tg-row.off{opacity:.55;}
+  .tg-row select,.tg-row input[type=text]{padding:6px 8px;border:1px solid var(--paper-line);border-radius:6px;font-size:13px;background:var(--card);min-width:0;}
+  @media (max-width:640px){ .tg-row{grid-template-columns:auto minmax(0,1fr);} .tg-row input[type=text]{grid-column:1 / -1;} }
+  .tg-pay{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px;}
+  .tg-pay b{color:var(--navy);}
+  .tg-actions{display:flex;justify-content:flex-end;margin-top:10px;}
+
   /* 대조 확인 */
   .rc-help{font-size:13px;color:var(--ink-soft);margin:0 0 12px;max-width:760px;line-height:1.55;}
   .rc-count{font-size:13px;color:var(--ink-soft);}
@@ -929,6 +952,20 @@ function App(){
   const [quickLinks, setQuickLinks] = useSyncedState("quickLinks", []);
   // 지급내역 (누구에게 얼마 줬는지) — 담당자관리 탭
   const [payments, setPayments] = useSyncedState("payments", []);
+  // 텔레그램 단톡방 메시지 (봇이 저장) — 확인사항 탭
+  const [inbox, setInbox] = useSyncedState("telegramInbox", []);
+  // "완" 같은 짧은 답은 자동으로 처리됨, 답장이면 원래 메시지도 처리됨으로
+  useEffect(() => {
+    const quick = inbox.filter(m => m.status==="new" && TG_DONE_WORDS.test((m.text||"").trim()));
+    if(!quick.length) return;
+    const targets = new Set(quick.map(m => m.replyTo).filter(Boolean));
+    setInbox(prev => prev.map(m => {
+      if(quick.some(q => q.id===m.id)) return { ...m, status: "auto", doneNote: "짧은 답 (" + (m.text||"").trim() + ")" };
+      if(targets.has(m.id) && m.status==="new"){ const q = quick.find(x => x.replyTo===m.id); return { ...m, status: "done", doneNote: `${q.from||""} "${(q.text||"").trim()}" 답장` }; }
+      return m;
+    }));
+  }, [inbox]);
+  const inboxNew = inbox.filter(m => m.status==="new").length;
   // 같은 사람 이름 통일 (정수 → 손정수): 이미 저장된 인원 칸·지급내역도 한 번 고칩니다
   useEffect(() => {
     if(!sites.length) return;
@@ -1031,6 +1068,7 @@ function App(){
             <button className={"tab" + (tab==="vendors"?" active":"")} onClick={()=>setTab("vendors")}>거래처</button>
             <button className={"tab" + (tab==="labor"?" active":"")} onClick={()=>setTab("labor")}>담당자관리</button>
             <button className={"tab" + (tab==="check"?" active":"")} onClick={()=>setTab("check")}>대조 확인</button>
+            <button className={"tab" + (tab==="inbox"?" active":"")} onClick={()=>setTab("inbox")}>확인사항{inboxNew>0 && <span className="tab-badge">{inboxNew}</span>}</button>
           </div>
         </div>
         <div className="ruler">{rulerTicks.map((_,i)=><span key={i}/>)}</div>
@@ -1048,6 +1086,9 @@ function App(){
         )}
         {tab==="vendors" && (
           <VendorsTab vendors={vendors} setVendors={setVendors} />
+        )}
+        {tab==="inbox" && (
+          <InboxTab inbox={inbox} setInbox={setInbox} sites={sites} dayNotes={dayNotes} setDayNotes={setDayNotes} setPayments={setPayments} />
         )}
         {tab==="check" && (
           <ReconcileTab trades={visibleTrades} sites={sites} schedules={schedules} setSchedules={setSchedules} dayNotes={dayNotes} payments={payments} />
@@ -4024,7 +4065,7 @@ function mergeDayNote(existing, add, siteId){
   return base;
 }
 
-function PaymentEditModal({ initial, onClose, onSave, onDelete }){
+function PaymentEditModal({ initial, isNew, onClose, onSave, onDelete }){
   const [f, setF] = useState(() => ({
     date: initial?.date || todayStr(), name: initial?.name || "", trade: initial?.trade || "", site: initial?.site || "",
     amount: initial?.amount ?? "", deduction: initial?.deduction ?? "", paid: initial?.paid ?? "",
@@ -4046,7 +4087,7 @@ function PaymentEditModal({ initial, onClose, onSave, onDelete }){
         <div className="modal-head">
           <div>
             <p className="eyebrow">PAYMENT</p>
-            <h3>{initial ? "지급 내역 수정" : "지급 내역 추가"}</h3>
+            <h3>{initial && !isNew ? "지급 내역 수정" : "지급 내역 추가"}</h3>
           </div>
           <button className="close-x" onClick={onClose}>✕</button>
         </div>
@@ -4077,7 +4118,7 @@ function PaymentEditModal({ initial, onClose, onSave, onDelete }){
           <div className="field"><label>메모</label><input type="text" value={f.memo} onChange={e=>set("memo", e.target.value)} /></div>
         </div>
         <div className="modal-footer" style={{justifyContent:"space-between"}}>
-          {initial ? <button className="btn btn-danger" onClick={onDelete}>삭제</button> : <span />}
+          {initial && !isNew ? <button className="btn btn-danger" onClick={onDelete}>삭제</button> : <span />}
           <div style={{display:"flex", gap:8}}>
             <button className="btn btn-ghost" onClick={onClose}>취소</button>
             <button className="btn btn-primary" onClick={submit}>저장</button>
@@ -4240,6 +4281,280 @@ function PaymentsSection({ payments, setPayments, sites, dayNotes, setDayNotes }
             <div className="modal-footer"><button className="btn btn-primary" onClick={()=>setImportResult(null)}>확인</button></div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- 텔레그램 메시지 해석 (일보 · 이체 요청) ---------- */
+const TG_BANKS = ["지역농협","농협","국민","우리","신한","하나","기업","새마을금고","새마을 금고","새마을","신협","카카오뱅크","카카오","토스뱅크","토스","케이뱅크","제주은행","제주","부산","대구","경남","광주","전북","수협","우체국","미래에셋증권","미래에셋","SC제일","씨티"];
+// 일보에서 현장을 줄여 부르는 말 → 스케줄러 현장 이름에 들어간 말
+const TG_SITE_ALIASES = { "군포":"한라주공", "군포주공":"한라주공", "주공":"소사주공", "풍림":"풍림", "양재":"양재" };
+const TG_NOT_NAMES = new Set(["이체","입금","송금","정산","완료","부탁","부탁드립니다","해주세요","보내주세요","입금요청합니다","이체해주세요","합계","총액","금액","공제","공제금액","부가세","포함","자재비","인력","설비","목공","타일","전기","필름","도배","가구","철거","샷시","방수","양중","잡부","일당","야근","식대","현장","운송료","입니다","입금완료","이체완료","정산함","별도","보조","배송비","기공","은행","금고","증권","뱅크","정산해주세요","입금부탁","드립니다","주세요","요청합니다","요청","이번","다음","이번까지","그냥","넣고","다음부터"]);
+
+function tgDateFromText(text, msgDate){
+  const head = (text||"").split("\n").slice(0, 2).join(" ");
+  const [my, mm, md] = msgDate.split("-").map(Number);
+  let m = null, d = null, mt;
+  if((mt = head.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/))){ m = +mt[1]; d = +mt[2]; }
+  else if((mt = head.match(/(?:^|\s)(\d{1,2})\s*\/\s*(\d{1,2})(?!\d)/))){ m = +mt[1]; d = +mt[2]; }
+  else if((mt = head.match(/^\s*(\d{1,2})\s*일(?![가-힣]*\s*[×x*])/))){ m = mm; d = +mt[1]; if(d > md + 3) m -= 1; }
+  if(!d || !m || m<1 || m>12 || d>31) return null;
+  let y = my;
+  if(m===0){ m = 12; y -= 1; }
+  if(m > mm + 6) y -= 1; // 1월에 12월 일보를 올린 경우
+  return `${y}-${pad(m)}-${pad(d)}`;
+}
+
+function tgSiteFor(word, sites, date){
+  const w = (word||"").replace(/\s+/g, "").replace(/\d+[동호]?$/,"").replace(/[\d(].*$/,"");
+  if(w.length<2) return null;
+  const key = TG_SITE_ALIASES[w] || w;
+  const hit = findSiteByKeyword(sites, key, date);
+  if(hit) return hit;
+  // '강나루현대' 처럼 앞부분만 같은 경우
+  const loose = sites.filter(s => { const n = (s.name||"").replace(/\s+/g, ""); return n.length>=2 && (key.startsWith(n.slice(0, 3)) || n.startsWith(key.slice(0, 3))) && key.slice(0,2)===n.slice(0,2); });
+  return loose.length===1 ? loose[0] : null;
+}
+
+const TG_DATE_LINE = /^(\d{1,2})\s*월\s*(\d{1,2})\s*일|^(\d{1,2})\s*\/\s*(\d{1,2})(?!\d)/;
+function tgLineDate(line, msgDate, first){
+  const [my, mm, md] = msgDate.split("-").map(Number);
+  let m = null, d = null, mt;
+  if((mt = line.match(TG_DATE_LINE))){ m = +(mt[1]||mt[3]); d = +(mt[2]||mt[4]); }
+  else if(first && (mt = line.match(/^\s*(\d{1,2})\s*일(\s|$)/))){ m = mm; d = +mt[1]; if(d > md + 3) m -= 1; }
+  if(!d || !m) return null;
+  let y = my;
+  if(m===0){ m = 12; y -= 1; }
+  if(m<1 || m>12 || d>31) return null;
+  if(m > mm + 6) y -= 1;
+  return `${y}-${pad(m)}-${pad(d)}`;
+}
+// 정산 목록(₩ 금액이 여러 개, 합계)은 일보가 아니라 이체 요청으로 봅니다
+const tgIsSettlementList = text => ((text||"").match(/₩/g) || []).length >= 2 || /(합계|=)\s*₩/.test(text||"");
+
+// 일보: 날짜 줄 + '현장 공정…' 줄들. 한 메시지에 날짜가 여러 개면 날짜별로 나눔 → [{date, rows}] 또는 null
+function tgParseDaily(msg, sites){
+  const text = msg.text || "";
+  if(tgIsSettlementList(text)) return null;
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+  const segs = [];
+  lines.forEach((line, i) => {
+    const date = tgLineDate(line, msg.date, i===0);
+    if(date){
+      const rest = line.replace(/^(\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}\s*\/\s*\d{1,2}|\d{1,2}\s*일)\s*([월화수목금토일](요일)?)?\s*/, "").trim();
+      segs.push({ date, lines: rest ? [rest] : [] });
+    } else if(segs.length) segs[segs.length-1].lines.push(line);
+  });
+  const out = segs.map(seg => {
+    const rows = [];
+    seg.lines.forEach(line => {
+      // 줄 앞쪽의 현장 이름들 (풍림, 소사주공 타일1 → 두 현장)
+      const toks = line.split(/\s+/);
+      const found = [];
+      let k = 0, unit = "";
+      while(k < toks.length){
+        const t = toks[k].replace(/[,，·]+$/, "");
+        const site = tgSiteFor(t, sites, seg.date);
+        if(!site) break;
+        found.push(site); unit = unit || (t.match(/(\d+호)/) || [])[1] || "";
+        k++;
+      }
+      const rest = ((unit ? unit + " " : "") + toks.slice(k).join(" ")).trim();
+      if(!found.length){ rows.push({ siteId: "", text: line }); return; }
+      found.forEach(site => rows.push({ siteId: site.id, text: rest || "(내용 없음)" }));
+    });
+    return { date: seg.date, rows: rows.filter(r => !/^\[?\s*사진\s*\]?$/.test(r.text)) };
+  }).filter(seg => seg.rows.some(r => r.siteId));
+  return out.length ? out : null;
+}
+
+function tgAmounts(text){
+  const out = [];
+  const re = /(\d{1,3}(?:[,.]\d{3})+|\d+(?:\.\d+)?)\s*(만\s*원|만|원)?/g;
+  let mt;
+  while((mt = re.exec(text||""))){
+    const rawNum = mt[1], unit = (mt[2]||"").replace(/\s/g, "");
+    const before = text.slice(Math.max(0, mt.index-1), mt.index), after = text.slice(re.lastIndex, re.lastIndex+1);
+    if(/[-\d]/.test(before) || /^-/.test(after)) continue;         // 계좌번호 조각
+    const digits = rawNum.replace(/[,.]/g, "");
+    if(!unit && /^\d{6,}$/.test(rawNum)) continue;                 // 붙어 있는 긴 숫자 = 계좌번호
+    let v;
+    if(unit.startsWith("만")) v = Math.round(parseFloat(rawNum.replace(/,/g, "")) * 10000);
+    else if(/[,.]\d{3}$/.test(rawNum)) v = Number(digits);
+    else if(unit==="원") v = Number(digits);
+    else continue;                                                 // 단위 없는 작은 숫자 (5품, 3일 …)
+    if(v >= 1000) out.push({ v, index: mt.index, unit });
+  }
+  return out;
+}
+
+// 이체·정산 요청: 금액 + (이체/입금/정산 같은 말 또는 은행). "1. … 2. …" 처럼 여러 건이면 나눠서 → [제안…] 또는 null
+function tgParsePayments(msg){
+  const lines = (msg.text||"").split("\n");
+  const starts = lines.map((l, i) => /^\s*\d+\s*[.)]\s*\S/.test(l) ? i : -1).filter(i => i>=0);
+  const blocks = starts.length>=2
+    ? starts.map((st, j) => lines.slice(st, starts[j+1] ?? lines.length).join("\n"))
+    : [msg.text||""];
+  const out = blocks.map(t => tgParsePayment({ ...msg, text: t })).filter(Boolean);
+  return out.length ? out : null;
+}
+function tgParsePayment(msg){
+  const text = msg.text || "";
+  const amounts = tgAmounts(text);
+  if(!amounts.length) return null;
+  const hasWord = /(이체|입금|송금|보내|정산|지급|부탁|공제|청구)/.test(text) || tgIsSettlementList(text);
+  const bank = TG_BANKS.find(b => text.includes(b)) || "";
+  if(!hasWord && !bank) return null;
+  const vals = amounts.map(a => a.v);
+  let amount, paid = null, deduction = null;
+  const totalMatch = amounts.find(a => /(총|합계|=|도합)\s*[:：]?\s*₩?\s*$/.test(text.slice(Math.max(0, a.index-6), a.index)));
+  amount = totalMatch ? totalMatch.v : Math.max(...vals);
+  if(/3\.3/.test(text) && vals.length>=2){
+    const max = Math.max(...vals);
+    const net = vals.find(v => v!==max && Math.abs(v - max*0.967) <= max*0.01);
+    if(net){ amount = max; paid = net; deduction = max - net; }
+  }
+  if(/3\.3\s*공제\s*금액/.test(text) && vals.length===1){ paid = vals[0]; amount = Math.round(vals[0]/0.967); deduction = amount - paid; }
+  const done = /(이체\s*완료|입금\s*완료|이체했|이체함|정산함|정산\s*완료|보냈)/.test(text);
+  if(done && paid==null) paid = amount - (deduction||0);
+  // 받는 사람: 한글 2~4자 중 은행·일반 단어가 아닌 것 (은행 이름 가까이에 있는 것 우선)
+  const words = [...text.matchAll(/(?<![가-힣])[가-힣]{2,4}(?![가-힣])/g)].map(m => ({ w: m[0], i: m.index }))
+    .filter(x => !TG_NOT_NAMES.has(x.w) && !TG_BANKS.some(b => b.includes(x.w) || x.w.includes(b.replace(/\s/g,""))) && !/(은행|금고|증권|뱅크|해주|드립|합니|입니|주세|요청|공제|현장|만원|함|했|요|다|니|음|고|서|로|에)$/.test(x.w));
+  const bankIdx = bank ? text.indexOf(bank) : -1;
+  const near = bankIdx>=0 ? words.filter(x => Math.abs(x.i - bankIdx) < 60).sort((a,b) => Math.abs(a.i-bankIdx) - Math.abs(b.i-bankIdx)) : [];
+  const name = bank && near.length ? near[0].w : "";
+  return { amount, paid, deduction, bank: bank.replace("새마을 금고","새마을금고"), name, status: done ? "지급완료" : "확인필요" };
+}
+
+/* ---------- 확인사항: 텔레그램 단톡방 메시지 ---------- */
+const TG_DONE_WORDS = /^(완|완료|입금\s*완료|이체\s*완료|ㅇㅋ|확인)[.!~ㅎ]*$/;
+
+function TgDailyApply({ segs, sites, onApply }){
+  // 줄마다 현장을 바꾸거나 빼고 넣을 수 있게
+  const [state, setState] = useState(() => segs.map(g => ({ date: g.date, rows: g.rows.map(r => ({ ...r, on: !!r.siteId && !/^없음/.test(r.text) })) })));
+  const siteOpts = [...sites].sort((a,b) => (isSiteEnded(a)?1:0)-(isSiteEnded(b)?1:0) || (a.order??0)-(b.order??0));
+  const setRow = (gi, ri, patch) => setState(prev => prev.map((g, i) => i!==gi ? g : { ...g, rows: g.rows.map((r, j) => j!==ri ? r : { ...r, ...patch }) }));
+  const count = state.reduce((n, g) => n + g.rows.filter(r => r.on && r.siteId).length, 0);
+  return (
+    <div className="tg-box">
+      <div className="tg-box-title">🗓 일보로 보여요 — 캘린더 인원 칸에 넣을 내용</div>
+      {state.map((g, gi) => (
+        <div key={gi} className="tg-seg">
+          <input type="date" value={g.date} onChange={e=>setState(prev => prev.map((x,i) => i===gi ? { ...x, date: e.target.value } : x))} />
+          {g.rows.map((r, ri) => (
+            <div key={ri} className={"tg-row" + (r.on && r.siteId ? "" : " off")}>
+              <input type="checkbox" checked={r.on && !!r.siteId} disabled={!r.siteId} onChange={e=>setRow(gi, ri, { on: e.target.checked })} />
+              <select value={r.siteId} onChange={e=>setRow(gi, ri, { siteId: e.target.value, on: !!e.target.value })}>
+                <option value="">현장 선택 (안 넣음)</option>
+                {siteOpts.map(s => <option key={s.id} value={s.id}>{siteLabel(s)}</option>)}
+              </select>
+              <input type="text" value={r.text} onChange={e=>setRow(gi, ri, { text: e.target.value })} />
+            </div>
+          ))}
+        </div>
+      ))}
+      <button className="btn btn-primary btn-sm" disabled={!count} onClick={()=>onApply(state)}>인원 칸에 넣기 ({count}곳)</button>
+    </div>
+  );
+}
+
+function InboxTab({ inbox, setInbox, sites, dayNotes, setDayNotes, setPayments }){
+  const [filter, setFilter] = useState("new");
+  const [payDraft, setPayDraft] = useState(null); // { msgId, initial }
+  const byId = Object.fromEntries(inbox.map(m => [m.id, m]));
+  const sorted = [...inbox].sort((a,b) => (b.ts||0) - (a.ts||0));
+  const list = filter==="new" ? sorted.filter(m => m.status==="new") : filter==="done" ? sorted.filter(m => m.status!=="new") : sorted;
+  const newCount = inbox.filter(m => m.status==="new").length;
+
+  const setStatus = (id, status, extra = {}) => setInbox(prev => prev.map(m => m.id===id ? { ...m, status, ...extra } : m));
+
+  function applyDaily(msg, state){
+    const notes = Object.fromEntries(dayNotes.map(n => [n.id, n]));
+    state.forEach(g => g.rows.filter(r => r.on && r.siteId).forEach(r => {
+      const id = `${r.siteId}_${g.date}`;
+      notes[id] = mergeDayNote(notes[id], { date: g.date, text: r.text }, r.siteId);
+    }));
+    setDayNotes(Object.values(notes));
+    setStatus(msg.id, "done", { doneNote: "인원 칸에 넣음" });
+  }
+
+  return (
+    <div>
+      <div className="section-head">
+        <div>
+          <p className="eyebrow">INBOX / 텔레그램 확인사항</p>
+          <h2>단톡방에 올라온 것 <span className="rc-count">· 확인할 것 <b>{newCount}</b></span></h2>
+        </div>
+        <div className="view-toggle">
+          <button className={filter==="new"?"active":""} onClick={()=>setFilter("new")}>확인할 것 ({newCount})</button>
+          <button className={filter==="done"?"active":""} onClick={()=>setFilter("done")}>처리됨</button>
+          <button className={filter==="all"?"active":""} onClick={()=>setFilter("all")}>전체</button>
+        </div>
+      </div>
+      <p className="rc-help">
+        텔레그램 단톡방 메시지가 1분 안에 여기로 들어와요. <b>일보</b>는 현장별로 나눠서 <b>인원 칸에 넣기</b>, <b>이체·정산 요청</b>은 금액·은행·받는 사람을 찾아서 <b>지급내역에 추가</b>할 수 있어요.
+        단톡방에서 "완"으로 답장하면 그 메시지는 자동으로 처리됨으로 바뀌어요.
+      </p>
+
+      {inbox.length===0 ? (
+        <div className="empty">아직 들어온 메시지가 없어요.<br/>텔레그램 봇을 단톡방에 초대하고 설정을 마치면 여기에 메시지가 쌓여요.</div>
+      ) : list.length===0 ? (
+        <div className="empty">{filter==="new" ? "확인할 메시지가 없어요. 모두 처리했어요." : "해당하는 메시지가 없어요."}</div>
+      ) : list.map(msg => {
+        const daily = msg.status==="new" ? tgParseDaily(msg, sites) : null;
+        const pays = msg.status==="new" ? tgParsePayments(msg) : null;
+        const replied = msg.replyTo && byId[msg.replyTo];
+        return (
+          <div key={msg.id} className={"card tg-msg" + (msg.status!=="new" ? " done" : "")}>
+            <div className="tg-head">
+              <b>{msg.from || "(이름 없음)"}</b>
+              <span>{(msg.date||"").slice(5).replace("-","/")} {msg.time}</span>
+              {msg.chatTitle && <span className="tg-chat">{msg.chatTitle}</span>}
+              {msg.edited && <span className="tg-tag">수정됨</span>}
+              {msg.hasPhoto && <span className="tg-tag photo">📷 사진 — 텔레그램에서 확인</span>}
+              {msg.status!=="new" && <span className="rc-ok">{msg.doneNote || "처리됨"}</span>}
+            </div>
+            {msg.replyTo && <div className="tg-reply">↳ 답장: {replied ? replied.text.slice(0, 80) : msg.replyText}</div>}
+            <div className="tg-text">{msg.text || (msg.hasPhoto ? "(사진만 있음)" : "")}</div>
+
+            {daily && <TgDailyApply segs={daily} sites={sites} onApply={state => applyDaily(msg, state)} />}
+            {pays && pays.map((p, i) => (
+              <div key={i} className="tg-box">
+                <div className="tg-box-title">💸 이체·정산 요청으로 보여요</div>
+                <div className="tg-pay">
+                  <span>받는 사람 <b>{p.name || "?"}</b></span>
+                  <span>금액 <b>{p.amount.toLocaleString("ko-KR")}원</b></span>
+                  {p.deduction ? <span>3.3% 공제 <b>{p.deduction.toLocaleString("ko-KR")}</b> → 실지급 <b>{p.paid.toLocaleString("ko-KR")}</b></span> : null}
+                  {p.bank && <span>은행 <b>{p.bank}</b></span>}
+                  <button className="btn btn-primary btn-sm" onClick={()=>setPayDraft({ msgId: msg.id, initial: {
+                    date: msg.date, name: p.name, trade: "", site: "", amount: p.amount, deduction: p.deduction, paid: p.paid,
+                    status: p.status, bank: p.bank, memo: (msg.text||"").replace(/\d{6,}|\d+(?:[-\s]\d+){2,}/g, "").replace(/\s*\n\s*/g, " / ").slice(0, 120),
+                  } })}>지급내역에 추가</button>
+                </div>
+              </div>
+            ))}
+
+            <div className="tg-actions">
+              {msg.status==="new"
+                ? <button className="btn btn-ghost btn-sm" onClick={()=>setStatus(msg.id, "done", { doneNote: "확인 완료" })}>✓ 확인 완료</button>
+                : <button className="btn btn-ghost btn-sm" onClick={()=>setStatus(msg.id, "new", { doneNote: "" })}>다시 확인할 것으로</button>}
+            </div>
+          </div>
+        );
+      })}
+
+      {payDraft && (
+        <PaymentEditModal
+          initial={payDraft.initial}
+          isNew
+          onClose={()=>setPayDraft(null)}
+          onSave={p => {
+            setPayments(prev => [...prev, { ...p, id: "pay-" + uid(), fromTelegram: payDraft.msgId }]);
+            setStatus(payDraft.msgId, "done", { doneNote: "지급내역에 추가함" });
+            setPayDraft(null);
+          }}
+        />
       )}
     </div>
   );
