@@ -447,6 +447,7 @@
 
   /* 출근 인원 칸 (현장별 맨 아래 줄) */
   .day-note-cell{border:1px solid var(--excel-line-soft);border-top:1px dashed var(--excel-line-soft);min-height:18px;display:flex;}
+  .site-label-ended{display:block;font-size:11px;font-weight:700;opacity:.65;margin-top:2px;}
   .day-note-cell{cursor:pointer;align-items:center;}
   .day-note-cell:hover{box-shadow:inset 0 0 0 1.5px var(--accent);}
   .day-note-text{font-size:10.5px;line-height:1.25;padding:2px 5px;color:rgba(0,0,0,.22);word-break:keep-all;}
@@ -807,7 +808,12 @@ function sortedTradeList(list){
 }
 // 현장의 전체 공사기간이 오늘보다 이전에 끝났으면 "종료"된 것으로 봅니다.
 function isSiteEnded(site, today){
-  return !!(site.projectEnd && site.projectEnd < (today || todayStr()));
+  return !!(site && site.projectEnd && site.projectEnd < (today || todayStr()));
+}
+// 화면 어디서나 끝난 현장 이름 뒤에 (종료)를 붙입니다
+function siteLabel(site){
+  if(!site) return "";
+  return site.name + (isSiteEnded(site) ? " (종료)" : "");
 }
 
 function loadLS(key, fallback){
@@ -923,8 +929,10 @@ function App(){
   // 같은 사람 이름 통일 (정수 → 손정수): 이미 저장된 인원 칸·지급내역도 한 번 고칩니다
   useEffect(() => {
     if(!sites.length) return;
-    const fixed = fixWorkerNotes(dayNotes, sites);
-    if(fixed) setDayNotes(fixed);
+    const moved = fixImportSites(dayNotes, sites);
+    const base = moved || dayNotes;
+    const fixed = fixWorkerNotes(base, sites);
+    if(moved || fixed) setDayNotes(fixed || base);
   }, [dayNotes, sites]);
   useEffect(() => {
     if(payments.some(p => canonicalName(p.name)!==p.name)) setPayments(prev => prev.map(p => canonicalName(p.name)!==p.name ? { ...p, name: canonicalName(p.name) } : p));
@@ -1348,7 +1356,7 @@ function SiteDetailModal({ site, trades, schedules, onClose, onUpdateSite, onAdd
         <div className="modal-head">
           <div>
             <p className="eyebrow">SITE DETAIL</p>
-            <h3>{site.name}</h3>
+            <h3>{siteLabel(site)}</h3>
           </div>
           <button className="close-x" onClick={onClose}>✕</button>
         </div>
@@ -1450,7 +1458,7 @@ function DayWorkersModal({ site, date, trades, onClose, onSave }){
         <div className="modal-head">
           <div>
             <p className="eyebrow">ASSIGN WORKERS</p>
-            <h3>{site.name} · {date}</h3>
+            <h3>{siteLabel(site)} · {date}</h3>
           </div>
           <button className="close-x" onClick={onClose}>✕</button>
         </div>
@@ -1513,7 +1521,7 @@ function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onCl
         <div className="modal-head">
           <div>
             <p className="eyebrow">ADD SCHEDULE · {initialDate}</p>
-            <h3>{initialSiteId ? site?.name : "일정 추가"}</h3>
+            <h3>{initialSiteId ? siteLabel(site) : "일정 추가"}</h3>
           </div>
           <button className="close-x" onClick={onClose}>✕</button>
         </div>
@@ -1522,7 +1530,7 @@ function QuickAddScheduleModal({ sites, initialSiteId, trades, initialDate, onCl
           <div className="field">
             <label>현장</label>
             <select value={siteId} onChange={e=>setSiteId(e.target.value)}>
-              {sites.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}
+              {sites.map(s => <option value={s.id} key={s.id}>{siteLabel(s)}</option>)}
             </select>
           </div>
         )}
@@ -1722,7 +1730,7 @@ function CustomerJpgModal({ sites, defaultSiteId, schedules, tradeById, siteBgMa
         <div className="field">
           <label>현장 선택 (공정 이름만 들어가요 · 메모·인원·담당자는 빠져요)</label>
           <select value={siteId} onChange={e=>setSiteId(e.target.value)}>
-            {sorted.map(s => <option key={s.id} value={s.id}>{s.name}{isSiteEnded(s) ? " (종료)" : ""}</option>)}
+            {sorted.map(s => <option key={s.id} value={s.id}>{siteLabel(s)}</option>)}
           </select>
         </div>
         {previewUrl && (
@@ -1784,7 +1792,7 @@ function DayWorkersEditModal({ site, date, note, nameSuggestions, lastWageByName
         <div className="modal-head">
           <div>
             <p className="eyebrow">WORKERS · 출근 인원</p>
-            <h3>{site.name} · {date}</h3>
+            <h3>{siteLabel(site)} · {date}</h3>
           </div>
           <button className="close-x" onClick={onClose}>✕</button>
         </div>
@@ -1861,7 +1869,7 @@ function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete })
         <div className="modal-head">
           <div>
             <p className="eyebrow">EDIT SCHEDULE</p>
-            <h3>{site?.name} · {trade?.name}</h3>
+            <h3>{siteLabel(site)} · {trade?.name}</h3>
           </div>
           <button className="close-x" onClick={onClose}>✕</button>
         </div>
@@ -2294,7 +2302,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
       const header = ["현장", "구분", ...days.map(d => { const dow = DOW[new Date(y, m, d).getDay()]; const h = krHoliday(ds(d)); return `${m+1}/${d}(${dow})${h ? " "+h : ""}`; })];
       const rows = [header];
       siteList.forEach(site => {
-        const tradeRow = [site.name, "공정"];
+        const tradeRow = [siteLabel(site), "공정"];
         const noteRow = ["", "인원"];
         days.forEach(d => {
           const date = ds(d);
@@ -2324,7 +2332,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
     list.forEach(sc => {
       const trade = tradeById[sc.tradeId]; const site = siteById[sc.siteId];
       const r = scheduleRange(sc); const contact = resolveContact(sc, trade);
-      listRows.push([site?.name||"", trade?.name||"", r.start, r.end, daySpan(sc), contact?.name||"", contact?.phone||"", sc.workerName||"",
+      listRows.push([siteLabel(site), trade?.name||"", r.start, r.end, daySpan(sc), contact?.name||"", contact?.phone||"", sc.workerName||"",
         sc.laborUnits!=null ? Number(sc.laborUnits) : "", effectiveDailyWage(sc, contact) ?? "", sc.memo||""]);
     });
     const ws2 = XLSX.utils.aoa_to_sheet(listRows);
@@ -2609,7 +2617,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
                               <div
                                 className={"site-label-tab" + (site.abbreviation ? " has-abbr" : "")}
                                 style={{ gridColumn:"1", gridRow:`${rowStart} / ${rowEnd}`, background: siteBgMap[site.id], color: siteColorMap[site.id] }}
-                                title={site.name + (site.manager ? ` (${site.manager})` : "")}
+                                title={siteLabel(site) + (site.manager ? ` (${site.manager})` : "")}
                               >
                                 <div className="site-label-tab-inner">
                                   {site.abbreviation ? (
@@ -2619,6 +2627,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
                                       ))}
                                     </span>
                                   ) : <span>{site.name}</span>}
+                                  {isSiteEnded(site) && <span className="site-label-ended">(종료)</span>}
                                 </div>
                               </div>
                               {slotsRender.map((cells, si) => cells.map((c, ci) => {
@@ -2752,7 +2761,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
               <div className="print-page" key={pm.y+"-"+pm.m}>
                 <h2 className="print-title">
                   공정표 · {pm.y}년 {pm.m+1}월
-                  {relevantSites.length<=3 && <span className="print-sub"> · {relevantSites.map(s => s.name).join(", ")}</span>}
+                  {relevantSites.length<=3 && <span className="print-sub"> · {relevantSites.map(siteLabel).join(", ")}</span>}
                 </h2>
                 {block}
               </div>
@@ -2770,7 +2779,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
               {relevantSites.map(s => (
                 <span className="legend-item" key={s.id}>
                   <span className="legend-dot" style={{background: siteBgMap[s.id], boxShadow:"inset 0 0 0 1px rgba(0,0,0,.25)"}} />
-                  {s.name}
+                  {siteLabel(s)}
                 </span>
               ))}
             </div>
@@ -2781,7 +2790,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
               <p className="eyebrow">{selectedDate}</p>
               {projectItems.filter(p => { const {start,end} = scheduleRange(p); return selectedDate>=start && selectedDate<=end; }).map(p => (
                 <div className="tag ok" key={p.id} style={{marginBottom:8, display:"inline-block"}}>
-                  🗂 {siteById[p.siteId]?.name} 전체 공사기간 진행 중
+                  🗂 {siteLabel(siteById[p.siteId])} 전체 공사기간 진행 중
                 </div>
               ))}
               {schedulesOn(selectedDate).length===0 ? (
@@ -2894,7 +2903,7 @@ function ScheduleRow({ sc, trade, site, onDelete, onEdit }){
     <div className="day-sched" onClick={onEdit} style={onEdit ? {cursor:"pointer"} : {}}>
       <span className="swatch-bar" style={{background: trade?.color}} />
       <div style={{flex:1}}>
-        <div style={{fontWeight:800, fontSize:14}}>{trade?.name} · {site?.name}</div>
+        <div style={{fontWeight:800, fontSize:14}}>{trade?.name} · {siteLabel(site)}</div>
         <div style={{fontSize:13, color:"var(--ink-soft)"}}>
           {start}{end!==start && ` ~ ${end}`} ({span}일) · 담당자: {contact?.name || "미지정"} {contact?.phone && `· ${contact.phone}`}
         </div>
@@ -3174,7 +3183,7 @@ function SitePayroll({ sites, dayNotes, monthStart, monthEnd }){
             return (
               <div className="card" style={{marginBottom:12}} key={site.id}>
                 <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8}}>
-                  <h4 style={{margin:0, fontSize:15}}>{site.name}</h4>
+                  <h4 style={{margin:0, fontSize:15}}>{siteLabel(site)}</h4>
                   <span style={{fontFamily:"var(--mono)", fontWeight:800, color:"var(--navy)"}}>{data.total.toLocaleString("ko-KR")}원</span>
                 </div>
                 {Object.entries(data.people).sort((a,b)=>b[1].amount-a[1].amount).map(([name, p]) => (
@@ -3937,7 +3946,7 @@ function fixWorkerNotes(notes, sites){
   KAKAO_IMPORT_1110.days.forEach(d => {
     const w = (d.workers||[])[0];
     if(!w || canonicalName(w.name)!=="손정수") return;
-    const site = findSiteByKeyword(sites, d.site);
+    const site = findSiteByKeyword(sites, d.site, d.date);
     if(!site) return;
     const wageNote = list.find(n => n.id===`${site.id}_${d.date}`);
     if(!wageNote || !(wageNote.workers||[]).some(x => x.name==="손정수" && x.wage===w.wage)) return;
@@ -3953,9 +3962,47 @@ function fixWorkerNotes(notes, sites){
   return changed ? list : null;
 }
 
-function findSiteByKeyword(sites, keyword){
+// 같은 이름이 들어간 현장이 여럿이면(중흥 411동·413동 등) 그날 공사기간 안에 있는 현장 →
+// 끝나지 않은 현장 → 가장 늦게 끝나는 현장 순으로 고릅니다
+function sitesByKeyword(sites, keyword){
   const k = keyword.replace(/\s+/g, "");
-  return sites.find(s => (s.name||"").replace(/\s+/g, "").includes(k)) || null;
+  return sites.filter(s => (s.name||"").replace(/\s+/g, "").includes(k));
+}
+function findSiteByKeyword(sites, keyword, date){
+  const c = sitesByKeyword(sites, keyword);
+  if(c.length<=1) return c[0] || null;
+  const covers = s => date && s.projectStart && s.projectEnd && date>=s.projectStart && date<=s.projectEnd;
+  return c.find(covers) || c.find(s => !isSiteEnded(s))
+    || [...c].sort((a,b) => (b.projectEnd||"").localeCompare(a.projectEnd||""))[0];
+}
+
+// 예전 가져오기가 엉뚱한 현장(끝난 중흥 411동 등)에 넣은 카톡 기록을 맞는 현장으로 옮깁니다. 바꿀 게 없으면 null
+function fixImportSites(notes, sites){
+  let list = notes;
+  let changed = false;
+  KAKAO_IMPORT_1110.days.forEach(d => {
+    const right = findSiteByKeyword(sites, d.site, d.date);
+    if(!right) return;
+    sitesByKeyword(sites, d.site).filter(s => s.id!==right.id).forEach(wrong => {
+      const wid = `${wrong.id}_${d.date}`;
+      const wn = list.find(n => n.id===wid);
+      if(!wn) return;
+      const moveWorkers = (d.workers||[]).filter(w => (wn.workers||[]).some(x => canonicalName(x.name)===canonicalName(w.name) && x.wage===w.wage));
+      const parts = (wn.text||"").split(" / ");
+      const moveText = !!d.text && parts.includes(d.text);
+      if(!moveWorkers.length && !moveText) return;
+      changed = true;
+      const left = {
+        ...wn,
+        workers: (wn.workers||[]).filter(x => !moveWorkers.some(w => canonicalName(x.name)===canonicalName(w.name) && x.wage===w.wage)),
+        text: moveText ? parts.filter(t => t!==d.text).join(" / ") : wn.text,
+      };
+      const rid = `${right.id}_${d.date}`;
+      const moved = mergeDayNote(list.find(n => n.id===rid), { date: d.date, text: moveText ? d.text : "", workers: moveWorkers.map(w => ({ ...w, name: canonicalName(w.name) })) }, right.id);
+      list = [...list.filter(n => n.id!==wid && n.id!==rid), moved, ...((left.workers.length || left.text) ? [left] : [])];
+    });
+  });
+  return changed ? list : null;
 }
 function mergeDayNote(existing, add, siteId){
   const base = existing ? { ...existing, workers: [...(existing.workers||[])] } : { id: `${siteId}_${add.date}`, siteId, date: add.date, workers: [], text: "" };
@@ -4071,7 +4118,7 @@ function PaymentsSection({ payments, setPayments, sites, dayNotes, setDayNotes }
     const byId = Object.fromEntries(dayNotes.map(n => [n.id, n]));
     const filledIds = new Set();
     data.days.forEach(d => {
-      const site = findSiteByKeyword(sites, d.site);
+      const site = findSiteByKeyword(sites, d.site, d.date);
       if(!site){ skipped.push(`${d.date.slice(5).replace("-","/")} ${d.site} — 스케줄러에 '${d.site}' 현장이 없음: ${d.text || ""}`); return; }
       const id = `${site.id}_${d.date}`;
       byId[id] = mergeDayNote(byId[id], d, site.id);
@@ -4377,7 +4424,7 @@ function ReconcileTab({ trades, sites, schedules, setSchedules, dayNotes, paymen
               {shown.map(r => (
                 <tr key={r.site.id+r.date} className={r.ok ? "" : "rc-bad"}>
                   <td className="nowrap">{r.date.slice(5).replace("-","/")}({DOW[new Date(r.date+"T00:00:00").getDay()]})</td>
-                  <td className="nowrap">{r.site.name}</td>
+                  <td className="nowrap">{siteLabel(r.site)}</td>
                   <td>{r.scheduled.length ? [...new Set(r.scheduled.map(sc => sc.tradeId))].map(id => <span key={id} className="rc-chip" style={{color: tradeTextColor(tradeById[id].color)}}>{tradeById[id].name}</span>) : <span className="rc-none">없음</span>}</td>
                   <td className="memo">{r.note ? formatWorkers(r.note) : <span className="rc-none">기록 없음</span>}</td>
                   <td>
