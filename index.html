@@ -453,12 +453,21 @@
   .rc-help{font-size:13px;color:var(--ink-soft);margin:0 0 12px;max-width:760px;line-height:1.55;}
   .rc-count{font-size:13px;color:var(--ink-soft);}
   .rc-count b{color:var(--danger);font-size:15px;}
-  .rc-chip{display:inline-block;font-weight:800;margin-right:8px;}
+  .rc-chip{display:inline-block;font-weight:800;margin-right:8px;background:none;border:none;padding:2px 0;font-size:inherit;font-family:inherit;cursor:pointer;border-bottom:1.5px dashed currentColor;}
+  .rc-chip:hover{opacity:.75;}
+  .rc-date{background:none;border:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px;}
+  .rc-date:hover{color:var(--accent);}
+  .trade-day-chip.focus-flash{animation:focusFlash 2.2s ease-out;position:relative;z-index:2;}
+  @keyframes focusFlash{0%,50%{box-shadow:0 0 0 3px var(--accent), 0 0 0 7px rgba(226,121,47,.25);}100%{box-shadow:0 0 0 3px transparent;}}
+  @media (prefers-reduced-motion: reduce){ .trade-day-chip.focus-flash{animation:none;box-shadow:0 0 0 3px var(--accent);} }
   .rc-none{color:var(--ink-soft);font-size:12px;}
   .rc-ok{font-size:12px;font-weight:700;color:#1e5b2b;background:#d9f0dd;border-radius:999px;padding:2px 8px;}
   .rc-diff{font-size:12.5px;font-weight:700;color:var(--danger);display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:2px 0;}
   .rc-diff .btn{color:var(--navy);font-weight:700;}
   .pay-table tr.rc-bad td:first-child{box-shadow:inset 3px 0 0 var(--danger);}
+  .pay-table tr.rc-checked td{opacity:.7;}
+  .rc-check-row{display:flex;align-items:center;gap:6px;margin-top:6px;}
+  .rc-check-btn{color:#1e5b2b !important;border-color:#bfe0c6 !important;}
 
   /* 지급내역 */
   .pay-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
@@ -998,6 +1007,9 @@ function App(){
     }));
   }, [inbox]);
   const inboxNew = inbox.filter(m => m.status==="new").length;
+  // 다른 탭(대조 확인 등)에서 공정을 누르면 캘린더의 그 칸으로 이동
+  const [calFocus, setCalFocus] = useState(null); // { date, siteId, scheduleId, n }
+  const goCalendar = target => { setCalFocus({ ...target, n: Date.now() }); setTab("calendar"); };
   // 새 메시지 알림: 페이지를 연 뒤에 들어온 메시지만
   const loadedAt = useRef(Math.floor(Date.now()/1000) - 5);
   const [toastDismissed, setToastDismissed] = useState({});
@@ -1117,7 +1129,7 @@ function App(){
           <SitesTab sites={sites} setSites={setSites} trades={visibleTrades} schedules={schedules} setSchedules={setSchedules} />
         )}
         {tab==="calendar" && (
-          <CalendarTab sites={sites} trades={visibleTrades} setTrades={setTrades} schedules={schedules} setSchedules={setSchedules} dayNotes={dayNotes} setDayNotes={setDayNotes} />
+          <CalendarTab sites={sites} trades={visibleTrades} setTrades={setTrades} schedules={schedules} setSchedules={setSchedules} dayNotes={dayNotes} setDayNotes={setDayNotes} focus={calFocus} onFocusDone={()=>setCalFocus(null)} />
         )}
         {tab==="contacts" && (
           <ContactsTab trades={visibleTrades} setTrades={setTrades} schedules={schedules} setSchedules={setSchedules} />
@@ -1152,7 +1164,7 @@ function App(){
           <InboxTab inbox={inbox} setInbox={setInbox} sites={sites} dayNotes={dayNotes} setDayNotes={setDayNotes} setPayments={setPayments} />
         )}
         {tab==="check" && (
-          <ReconcileTab trades={visibleTrades} sites={sites} schedules={schedules} setSchedules={setSchedules} dayNotes={dayNotes} payments={payments} />
+          <ReconcileTab trades={visibleTrades} sites={sites} schedules={schedules} setSchedules={setSchedules} dayNotes={dayNotes} payments={payments} onGoCalendar={goCalendar} />
         )}
         {tab==="labor" && (
           <LaborTab trades={visibleTrades} sites={sites} schedules={schedules} dayNotes={dayNotes} setDayNotes={setDayNotes} payments={payments} setPayments={setPayments} />
@@ -2188,7 +2200,7 @@ function SiteMultiSelect({ sites, selectedSiteIds, onChange }){
   );
 }
 
-function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNotes, setDayNotes }){
+function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNotes, setDayNotes, focus, onFocusDone }){
   const dayNoteMap = useMemo(() => Object.fromEntries(dayNotes.map(n => [n.id, n])), [dayNotes]);
   const [workerEdit, setWorkerEdit] = useState(null); // { siteId, date }
   // 이름 자동완성 + 그 사람의 가장 최근 일당 자동 입력
@@ -2533,6 +2545,27 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
     return () => clearTimeout(t);
   }, [todayFlash]);
 
+  // 대조 확인 등에서 넘어온 '이 칸으로 가기': 그 달로 이동 → 현장이 숨겨져 있으면 보이게 → 그 공정 칸으로 스크롤하고 깜빡임
+  useEffect(() => {
+    if(!focus || selectedSiteIds===null) return; // 현장 선택이 준비된 뒤에 실행
+    const [fy, fm] = focus.date.split("-").map(Number);
+    setCursor({ y: fy, m: fm - 1 });
+    setSelectedDate(null);
+    if(Array.isArray(selectedSiteIds) && focus.siteId && !selectedSiteIds.includes(focus.siteId)) setSelectedSiteIds([...selectedSiteIds, focus.siteId]);
+    const t = setTimeout(() => {
+      const chip = focus.scheduleId && document.querySelector(`.no-print .trade-day-chip[data-sc="${focus.scheduleId}"][data-date="${focus.date}"]`);
+      const row = [...document.querySelectorAll(".no-print .week-row[data-start]")].find(r => r.dataset.start<=focus.date && r.dataset.end>=focus.date);
+      const target = chip || row;
+      if(target){
+        target.scrollIntoView({ behavior:"smooth", block:"center" });
+        const cls = chip ? "focus-flash" : "today-flash";
+        target.classList.remove(cls); void target.offsetWidth; target.classList.add(cls);
+      }
+      onFocusDone && onFocusDone();
+    }, 150);
+    return () => clearTimeout(t);
+  }, [focus && focus.n, selectedSiteIds===null]);
+
   const todayFull = todayStr();
 
   // renders one month's dow-row + week grid (used twice, stacked vertically)
@@ -2769,6 +2802,8 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
                                   <div
                                     key={ci}
                                     className={"trade-day-chip" + (dragOverDate===c.dateStr ? " drop-target" : "")}
+                                    data-sc={sc.id}
+                                    data-date={c.dateStr}
                                     style={{ gridColumn:`${c.colStart+1} / ${c.colEnd+1}`, gridRow: rowLine, ...extraStyle, background: deepenColor(siteBgMap[site.id], 0.1) }}
                                     title={`${site.name} · ${tr.trade.name}${sc.workerName ? " · "+sc.workerName : ""}${sc.memo ? " · "+sc.memo : ""} (${r.start} ~ ${r.end}) — 클릭하면 수정, 드래그로 날짜 이동`}
                                     draggable
@@ -4763,9 +4798,12 @@ function attendanceByPerson(schedules, trades, from, to){
   return out;
 }
 
-function ReconcileTab({ trades, sites, schedules, setSchedules, dayNotes, payments }){
+function ReconcileTab({ trades, sites, schedules, setSchedules, dayNotes, payments, onGoCalendar }){
   const [cursor, setCursor] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
-  const [showAll, setShowAll] = useState(false);
+  const [view, setView] = useState("bad"); // bad = 어긋난 곳(확인 안 한 것), checked = 확인함, all = 전체
+  // '확인함'으로 뺀 줄 — 모든 직원이 같이 봄. 그 줄의 차이가 나중에 바뀌면 다시 나타나요
+  const [dismissed, setDismissed] = useSyncedState("checkDismissed", []);
+  const dismissedSig = Object.fromEntries(dismissed.map(d => [d.id, d.sig]));
   const [scope, setScope] = useState("all");
   const monthStart = `${cursor.y}-${pad(cursor.m+1)}-01`;
   const monthEnd = `${cursor.y}-${pad(cursor.m+1)}-${pad(new Date(cursor.y, cursor.m+1, 0).getDate())}`;
@@ -4787,11 +4825,18 @@ function ReconcileTab({ trades, sites, schedules, setSchedules, dayNotes, paymen
       const { found, people } = tradesInNote(note, trades);
       const onlyCal = [...schedIds].filter(id => !found.has(id));
       const onlyRec = [...found].filter(id => !schedIds.has(id));
-      rows.push({ date, site, scheduled, note, people, onlyCal, onlyRec, ok: !onlyCal.length && !onlyRec.length });
+      const key = `${site.id}_${date}`;
+      const sig = [...onlyCal].sort().join(",") + "|" + [...onlyRec].sort().join(",");
+      const ok = !onlyCal.length && !onlyRec.length;
+      rows.push({ key, sig, date, site, scheduled, note, people, onlyCal, onlyRec, ok, checked: !ok && dismissedSig[key]===sig });
     });
   });
-  const shown = showAll ? rows : rows.filter(r => !r.ok);
+  const shown = view==="all" ? rows : view==="checked" ? rows.filter(r => r.checked) : rows.filter(r => !r.ok && !r.checked);
   const okCount = rows.filter(r => r.ok).length;
+  const badCount = rows.filter(r => !r.ok && !r.checked).length;
+  const checkedCount = rows.filter(r => r.checked).length;
+  const markChecked = r => setDismissed(prev => [...prev.filter(d => d.id!==r.key), { id: r.key, sig: r.sig, at: todayStr() }]);
+  const unmarkChecked = r => setDismissed(prev => prev.filter(d => d.id!==r.key));
 
   function addToCalendar(siteId, date, tradeId){
     const trade = tradeById[tradeId];
@@ -4884,31 +4929,40 @@ function ReconcileTab({ trades, sites, schedules, setSchedules, dayNotes, paymen
         </div>
       </div>
       <p className="rc-help">
-        현장·날짜마다 <b>캘린더에 잡힌 공정</b>과 맨 아래 <b>인원 칸</b>(카톡 일보)에 적힌 공정·사람을 비교해요.
+        <b>공정 이름이나 날짜를 누르면 캘린더의 그 칸으로 바로 가요.</b> 현장·날짜마다 <b>캘린더에 잡힌 공정</b>과 맨 아래 <b>인원 칸</b>(카톡 일보)에 적힌 공정·사람을 비교해요.
         인원 칸이 하나라도 적힌 날({reportDates.length}일)만 비교하고, 사람 이름은 공정별 담당자 탭의 담당자로 공정을 찾아요.
       </p>
       <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, flexWrap:"wrap", margin:"0 0 8px"}}>
-        <span className="rc-count">어긋난 곳 <b>{rows.length-okCount}</b> · 맞는 곳 {okCount}</span>
+        <span className="rc-count">어긋난 곳 <b>{badCount}</b> · 확인함 {checkedCount} · 맞는 곳 {okCount}</span>
         <div className="view-toggle">
-          <button className={!showAll?"active":""} onClick={()=>setShowAll(false)}>어긋난 곳만</button>
-          <button className={showAll?"active":""} onClick={()=>setShowAll(true)}>전체</button>
+          <button className={view==="bad"?"active":""} onClick={()=>setView("bad")}>어긋난 곳 ({badCount})</button>
+          <button className={view==="checked"?"active":""} onClick={()=>setView("checked")}>확인함 ({checkedCount})</button>
+          <button className={view==="all"?"active":""} onClick={()=>setView("all")}>전체</button>
         </div>
       </div>
       {shown.length===0 ? (
-        <div className="empty">{reportDates.length ? "이 달에는 어긋난 곳이 없어요." : "이 달에는 인원 칸(출근기록)이 적힌 날이 없어서 비교할 게 없어요."}</div>
+        <div className="empty">{!reportDates.length ? "이 달에는 인원 칸(출근기록)이 적힌 날이 없어서 비교할 게 없어요." : view==="checked" ? "확인함으로 뺀 줄이 없어요." : "이 달에는 확인할 어긋난 곳이 없어요."}</div>
       ) : (
         <div className="card" style={{padding:0, overflowX:"auto"}}>
           <table className="pay-table rc-table">
             <thead><tr><th>날짜</th><th>현장</th><th>캘린더 공정</th><th>출근기록 (인원 칸)</th><th>차이</th></tr></thead>
             <tbody>
               {shown.map(r => (
-                <tr key={r.site.id+r.date} className={r.ok ? "" : "rc-bad"}>
-                  <td className="nowrap">{r.date.slice(5).replace("-","/")}({DOW[new Date(r.date+"T00:00:00").getDay()]})</td>
+                <tr key={r.site.id+r.date} className={r.ok ? "" : r.checked ? "rc-checked" : "rc-bad"}>
+                  <td className="nowrap"><button type="button" className="rc-date" title="캘린더에서 이 날 보기" onClick={()=>onGoCalendar({ date: r.date, siteId: r.site.id })}>{r.date.slice(5).replace("-","/")}({DOW[new Date(r.date+"T00:00:00").getDay()]})</button></td>
                   <td className="nowrap">{siteLabel(r.site)}</td>
-                  <td>{r.scheduled.length ? [...new Set(r.scheduled.map(sc => sc.tradeId))].map(id => <span key={id} className="rc-chip" style={{color: tradeTextColor(tradeById[id].color)}}>{tradeById[id].name}</span>) : <span className="rc-none">없음</span>}</td>
+                  <td>{r.scheduled.length ? [...new Set(r.scheduled.map(sc => sc.tradeId))].map(id => (
+                    <button key={id} type="button" className="rc-chip" style={{color: tradeTextColor(tradeById[id].color)}} title="캘린더에서 이 공정 보기"
+                      onClick={()=>onGoCalendar({ date: r.date, siteId: r.site.id, scheduleId: r.scheduled.find(sc => sc.tradeId===id).id })}>
+                      {tradeById[id].name}
+                    </button>
+                  )) : <span className="rc-none">없음</span>}</td>
                   <td className="memo">{r.note ? formatWorkers(r.note) : <span className="rc-none">기록 없음</span>}</td>
                   <td>
                     {r.ok && <span className="rc-ok">일치</span>}
+                    {!r.ok && (r.checked
+                      ? <div className="rc-check-row"><span className="rc-ok">✓ 확인함</span><button className="btn btn-ghost btn-sm" onClick={()=>unmarkChecked(r)}>다시 보기</button></div>
+                      : <div className="rc-check-row"><button className="btn btn-ghost btn-sm rc-check-btn" onClick={()=>markChecked(r)} title="확인했으면 어긋난 곳 목록에서 빼요">✓ 확인함 · 목록에서 빼기</button></div>)}
                     {r.onlyCal.length>0 && <div className="rc-diff">캘린더에만: {r.onlyCal.map(id => tradeById[id].name).join(", ")}</div>}
                     {r.onlyRec.map(id => (
                       <div key={id} className="rc-diff">기록에만: {tradeById[id].name} <button className="btn btn-ghost btn-sm" onClick={()=>addToCalendar(r.site.id, r.date, id)} title="이 날 캘린더에 공정 추가">캘린더에 추가</button></div>
