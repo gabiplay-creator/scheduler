@@ -941,7 +941,24 @@ function QuickLinkModal({ def, initial, onClose, onSave }){
 
 /* ---------- root ---------- */
 function App(){
-  const [tab, setTab] = useState("calendar");
+  // 보던 탭을 주소(#inbox 등)와 이 브라우저에 기억해서, 새로고침해도 같은 탭에 머뭅니다
+  const TABS = ["calendar","sites","contacts","vendors","labor","check","inbox"];
+  const [tab, setTabRaw] = useState(() => {
+    const h = (location.hash||"").replace("#","");
+    if(TABS.includes(h)) return h;
+    try { const saved = localStorage.getItem("scheduler:tab"); if(TABS.includes(saved)) return saved; } catch(e){}
+    return "calendar";
+  });
+  const setTab = t => {
+    setTabRaw(t);
+    try { localStorage.setItem("scheduler:tab", t); } catch(e){}
+    try { history.replaceState(null, "", "#" + t); } catch(e){}
+  };
+  useEffect(() => {
+    const onHash = () => { const h = (location.hash||"").replace("#",""); if(TABS.includes(h)) setTabRaw(h); };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const [trades, setTrades] = useSyncedState("trades", DEFAULT_TRADES);
   const [sites, setSites] = useSyncedState("sites", []);
   const [schedules, setSchedules] = useSyncedState("schedules", []);
