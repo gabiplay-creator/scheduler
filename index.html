@@ -447,6 +447,9 @@
 
   /* 출근 인원 칸 (현장별 맨 아래 줄) */
   .day-note-cell{border:1px solid var(--excel-line-soft);border-top:1px dashed var(--excel-line-soft);min-height:18px;display:flex;}
+  .chip-added{font-size:.72em;font-weight:800;color:var(--danger);letter-spacing:-.02em;}
+  .added-mark-toggle{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--ink-soft);margin:-4px 0 6px;cursor:pointer;}
+  .added-mark-toggle input{margin-top:2px;}
   .site-label-ended{display:block;font-size:11px;font-weight:700;opacity:.65;margin-top:2px;}
   .day-note-cell{cursor:pointer;align-items:center;}
   .day-note-cell:hover{box-shadow:inset 0 0 0 1.5px var(--accent);}
@@ -1852,6 +1855,7 @@ function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete })
   const [laborUnits, setLaborUnits] = useState(schedule.laborUnits!=null ? String(schedule.laborUnits) : "");
   const [dailyWage, setDailyWage] = useState(schedule.dailyWage!=null ? String(schedule.dailyWage) : "");
   const [memo, setMemo] = useState(schedule.memo || "");
+  const [addedMark, setAddedMark] = useState(!!schedule.addedFromCheck);
 
   function handleStartChange(v){
     setStartDate(v);
@@ -1859,7 +1863,7 @@ function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete })
   }
   function submit(){
     if(!startDate || !endDate){ alert("시작일과 종료일을 입력해주세요."); return; }
-    onSave({ startDate, endDate: endDate<startDate ? startDate : endDate, contactId, workerName: workerName.trim(), laborUnits: laborUnits==="" ? null : Number(laborUnits), dailyWage: dailyWage==="" ? null : Number(dailyWage), memo });
+    onSave({ startDate, endDate: endDate<startDate ? startDate : endDate, contactId, workerName: workerName.trim(), laborUnits: laborUnits==="" ? null : Number(laborUnits), dailyWage: dailyWage==="" ? null : Number(dailyWage), memo, addedFromCheck: addedMark });
   }
   const contactWage = resolveContact({ contactId }, trade)?.dailyWage;
 
@@ -1905,6 +1909,12 @@ function EditScheduleModal({ schedule, trade, site, onClose, onSave, onDelete })
             <label>메모</label>
             <input type="text" value={memo} onChange={e=>setMemo(e.target.value)} placeholder="예: 실측 약속, 오전 시공 등" />
           </div>
+          {schedule.addedFromCheck && (
+            <label className="added-mark-toggle" style={{gridColumn:"1 / -1"}}>
+              <input type="checkbox" checked={addedMark} onChange={e=>setAddedMark(e.target.checked)} />
+              캘린더에 <b>(추가)</b> 표시 — 대조 확인에서 카톡 일보를 보고 넣은 공정이에요. 확인이 끝났으면 체크를 풀어주세요.
+            </label>
+          )}
         </div>
 
         <div className="modal-footer" style={{justifyContent:"space-between"}}>
@@ -2668,7 +2678,7 @@ function CalendarTab({ sites, trades, setTrades, schedules, setSchedules, dayNot
                                     onClick={e=>{ e.stopPropagation(); setEditingScheduleId(sc.id); }}
                                   >
                                     <span className="chip-main" style={{fontSize: chipFontSize+"px", color: tradeTextColor(tr.trade.color)}}>
-                                      {tr.trade.name}{sc.memo && ` (${sc.memo})`}
+                                      {sc.addedFromCheck && <span className="chip-added">(추가) </span>}{tr.trade.name}{sc.memo && ` (${sc.memo})`}
                                     </span>
                                   </div>
                                 );
@@ -4315,7 +4325,7 @@ function ReconcileTab({ trades, sites, schedules, setSchedules, dayNotes, paymen
 
   function addToCalendar(siteId, date, tradeId){
     const trade = tradeById[tradeId];
-    setSchedules(prev => [...prev, { id: uid(), siteId, tradeId, contactId: defaultContactId(trade), startDate: date, endDate: date, workerName: "", laborUnits: null, memo: "" }]);
+    setSchedules(prev => [...prev, { id: uid(), siteId, tradeId, contactId: defaultContactId(trade), startDate: date, endDate: date, workerName: "", laborUnits: null, memo: "", addedFromCheck: true }]);
   }
 
   // ② 공정·사람별: 캘린더 출근 ↔ 인원 칸 일당 ↔ 지급내역
