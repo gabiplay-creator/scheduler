@@ -503,7 +503,8 @@
   .day-note-text{font-size:10.5px;line-height:1.25;padding:2px 5px;color:rgba(0,0,0,.22);word-break:keep-all;}
   .day-note-cell.has-value .day-note-text{color:var(--ink);font-weight:700;}
   @media print{ .day-note-cell:not(.has-value) .day-note-text{visibility:hidden;} }
-  .worker-row{display:grid;grid-template-columns:1.3fr 1fr 52px auto;gap:8px;align-items:center;margin-bottom:8px;}
+  .worker-row{display:grid;grid-template-columns:1.3fr 1fr 52px auto;gap:6px 8px;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:1px dashed var(--paper-line);}
+  .worker-row .worker-memo{grid-column:1 / -1;font-size:13px !important;}
   .worker-row input{padding:9px 11px;border:1px solid var(--paper-line);border-radius:8px;font-size:14px;background:var(--paper);width:100%;}
   .worker-wage-preview{font-size:12.5px;font-weight:700;color:var(--navy);text-align:center;}
   .worker-total{margin-top:14px;padding:10px 12px;background:var(--paper);border-radius:8px;font-size:13.5px;display:flex;justify-content:space-between;}
@@ -1875,7 +1876,7 @@ function formatWageShort(w){
 function formatWorkers(note){
   if(!note) return "";
   const ws = (note.workers||[]).filter(x => x.name);
-  const names = ws.map(x => x.name + (formatWageShort(x.wage) ? `(${formatWageShort(x.wage)})` : "")).join(", ");
+  const names = ws.map(x => x.name + (formatWageShort(x.wage) ? `(${formatWageShort(x.wage)})` : "") + (x.memo ? ` - ${x.memo}` : "")).join(", ");
   return [names, note.text].filter(Boolean).join(" · ");
 }
 
@@ -1889,7 +1890,8 @@ function DayWorkerCell({ note, onClick, style }){
 }
 
 function DayWorkersEditModal({ site, date, note, nameSuggestions, lastWageByName, onClose, onSave }){
-  const initial = (note?.workers||[]).length ? note.workers.map(x => ({ name: x.name||"", wage: x.wage!=null ? String(x.wage) : "" })) : [{ name:"", wage:"" }];
+  const blank = () => ({ name:"", wage:"", memo:"" });
+  const initial = (note?.workers||[]).length ? note.workers.map(x => ({ name: x.name||"", wage: x.wage!=null ? String(x.wage) : "", memo: x.memo||"" })) : [blank()];
   const [rows, setRows] = useState(initial);
   const [legacyText, setLegacyText] = useState(note?.text || "");
   const update = (i, patch) => setRows(prev => prev.map((r, k) => k===i ? { ...r, ...patch } : r));
@@ -1899,7 +1901,7 @@ function DayWorkersEditModal({ site, date, note, nameSuggestions, lastWageByName
   }
   const total = rows.reduce((sum, r) => sum + (r.name.trim() && r.wage!=="" ? Number(r.wage) : 0), 0);
   function submit(){
-    const workers = rows.filter(r => r.name.trim()).map(r => ({ name: canonicalName(r.name), wage: r.wage==="" ? null : Number(r.wage) }));
+    const workers = rows.filter(r => r.name.trim()).map(r => ({ name: canonicalName(r.name), wage: r.wage==="" ? null : Number(r.wage), ...(r.memo.trim() ? { memo: r.memo.trim() } : {}) }));
     onSave(workers, legacyText.trim());
     onClose();
   }
@@ -1917,18 +1919,17 @@ function DayWorkersEditModal({ site, date, note, nameSuggestions, lastWageByName
         {rows.map((r, i) => (
           <div className="worker-row" key={i}>
             <input type="text" list="worker-name-list" value={r.name} autoFocus={i===rows.length-1 && !r.name} placeholder="이름 (예: 이동준)" onChange={e=>changeName(i, e.target.value)} />
-            <input type="number" min="0" step="10000" value={r.wage} placeholder="일당(원)" onChange={e=>update(i, { wage: e.target.value })} onKeyDown={e=>{ if(e.key==="Enter") setRows(prev => [...prev, { name:"", wage:"" }]); }} />
+            <input type="number" min="0" step="10000" value={r.wage} placeholder="일당(원)" onChange={e=>update(i, { wage: e.target.value })} onKeyDown={e=>{ if(e.key==="Enter") setRows(prev => [...prev, blank()]); }} />
             <span className="worker-wage-preview">{formatWageShort(r.wage) || "-"}</span>
-            <button className="btn btn-danger btn-sm" onClick={()=>setRows(prev => prev.length>1 ? prev.filter((_, k) => k!==i) : [{ name:"", wage:"" }])}>✕</button>
+            <button className="btn btn-danger btn-sm" onClick={()=>setRows(prev => prev.length>1 ? prev.filter((_, k) => k!==i) : [blank()])}>✕</button>
+            <input type="text" className="worker-memo" value={r.memo} placeholder="메모 (예: 소사주공 > 가양현대 폐기물차 이동)" onChange={e=>update(i, { memo: e.target.value })} onKeyDown={e=>{ if(e.key==="Enter") setRows(prev => [...prev, blank()]); }} />
           </div>
         ))}
-        <button className="btn btn-ghost btn-sm" style={{marginTop:4}} onClick={()=>setRows(prev => [...prev, { name:"", wage:"" }])}>+ 사람 추가</button>
-        {legacyText && (
-          <div className="field" style={{marginTop:14}}>
-            <label>예전에 칸에 적어둔 메모</label>
-            <input type="text" value={legacyText} onChange={e=>setLegacyText(e.target.value)} />
-          </div>
-        )}
+        <button className="btn btn-ghost btn-sm" style={{marginTop:4}} onClick={()=>setRows(prev => [...prev, blank()])}>+ 사람 추가</button>
+        <div className="field" style={{marginTop:14}}>
+          <label>칸 메모 (사람과 상관없는 내용 · 예: 타일 1, 싱크 상판)</label>
+          <input type="text" value={legacyText} onChange={e=>setLegacyText(e.target.value)} placeholder="없으면 비워두세요" />
+        </div>
         <div className="worker-total">이날 인건비 합계 <b>{total.toLocaleString("ko-KR")}원</b></div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>취소</button>
@@ -4153,7 +4154,7 @@ function fixImportSites(notes, sites){
 }
 function mergeDayNote(existing, add, siteId){
   const base = existing ? { ...existing, workers: [...(existing.workers||[])] } : { id: `${siteId}_${add.date}`, siteId, date: add.date, workers: [], text: "" };
-  (add.workers||[]).forEach(w => { if(!base.workers.some(x => x.name===w.name)) base.workers.push({ name: w.name, wage: w.wage }); });
+  (add.workers||[]).forEach(w => { if(!base.workers.some(x => x.name===w.name)) base.workers.push({ name: w.name, wage: w.wage, ...(w.memo ? { memo: w.memo } : {}) }); });
   if(add.text){
     const cur = base.text || "";
     if(!cur.includes(add.text)) base.text = cur ? `${cur} / ${add.text}` : add.text;
