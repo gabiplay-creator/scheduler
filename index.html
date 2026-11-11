@@ -432,7 +432,22 @@
   @media (max-width:640px){ .tg-row{grid-template-columns:auto minmax(0,1fr);} .tg-row input[type=text]{grid-column:1 / -1;} }
   .tg-pay{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:13px;}
   .tg-pay b{color:var(--navy);}
-  .tg-actions{display:flex;justify-content:flex-end;margin-top:10px;}
+  .tg-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  .tg-paste{margin-bottom:14px;}
+  .tg-paste textarea{width:100%;padding:9px 11px;border:1px solid var(--paper-line);border-radius:8px;font-size:14px;background:var(--paper);font-family:inherit;resize:vertical;}
+  .tg-paste-row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:var(--ink-soft);}
+  .tg-paste-row input{margin-left:6px;padding:4px 8px;border:1px solid var(--paper-line);border-radius:6px;background:var(--card);}
+  .tg-toast{position:fixed;right:max(20px, env(safe-area-inset-right, 0px));bottom:max(20px, env(safe-area-inset-bottom, 0px));width:min(380px, calc(100vw - 32px));z-index:900;
+    background:var(--card);border:1px solid var(--paper-line);border-radius:14px;box-shadow:0 14px 40px rgba(0,0,0,.22);padding:14px 16px;animation:tgIn .25s ease-out;}
+  @keyframes tgIn{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}
+  @media (prefers-reduced-motion: reduce){ .tg-toast{animation:none;} }
+  .tg-toast-title{display:flex;align-items:center;gap:6px;font-weight:800;font-size:14px;color:var(--navy);}
+  .tg-toast-title .close-x{margin-left:auto;}
+  .tg-toast-more{font-weight:600;color:var(--ink-soft);font-size:12.5px;}
+  .tg-toast-text{white-space:pre-wrap;font-size:13px;color:var(--ink);margin:6px 0;max-height:110px;overflow:auto;background:var(--paper);border-radius:8px;padding:8px 10px;}
+  .tg-toast-q{font-size:12.5px;color:var(--ink-soft);margin-bottom:8px;}
+  .tg-toast-actions{display:flex;justify-content:flex-end;gap:6px;}
+  @media print{ .tg-toast{display:none;} }
 
   /* 대조 확인 */
   .rc-help{font-size:13px;color:var(--ink-soft);margin:0 0 12px;max-width:760px;line-height:1.55;}
@@ -983,6 +998,12 @@ function App(){
     }));
   }, [inbox]);
   const inboxNew = inbox.filter(m => m.status==="new").length;
+  // 새 메시지 알림: 페이지를 연 뒤에 들어온 메시지만
+  const loadedAt = useRef(Math.floor(Date.now()/1000) - 5);
+  const [toastDismissed, setToastDismissed] = useState({});
+  const [toastUndo, setToastUndo] = useState(null); // { msgId, before, count }
+  const toastMsg = [...inbox].filter(m => m.status==="new" && (m.ts||0) >= loadedAt.current && !toastDismissed[m.id] && !String(m.id).startsWith("paste-"))
+    .sort((a,b) => (b.ts||0)-(a.ts||0))[0];
   // 같은 사람 이름 통일 (정수 → 손정수): 이미 저장된 인원 칸·지급내역도 한 번 고칩니다
   useEffect(() => {
     if(!sites.length) return;
@@ -1103,6 +1124,29 @@ function App(){
         )}
         {tab==="vendors" && (
           <VendorsTab vendors={vendors} setVendors={setVendors} />
+        )}
+        {(toastMsg || toastUndo) && (
+          <NewMessageToast
+            msg={toastMsg}
+            undo={toastUndo}
+            more={inbox.filter(m => m.status==="new" && (m.ts||0) >= loadedAt.current && !toastDismissed[m.id]).length - 1}
+            sites={sites}
+            onOpen={()=>{ setTab("inbox"); if(toastMsg) setToastDismissed(p => ({ ...p, [toastMsg.id]: true })); }}
+            onClose={()=>{ if(toastMsg) setToastDismissed(p => ({ ...p, [toastMsg.id]: true })); setToastUndo(null); }}
+            onApply={segs => {
+              const { next, before, count } = applyDailyToNotes(dayNotes, tgDefaultState(segs));
+              setDayNotes(next);
+              setInbox(prev => prev.map(m => m.id===toastMsg.id ? { ...m, status: "done", doneNote: "인원 칸에 넣음 (알림에서 바로 넣기)" } : m));
+              setToastDismissed(p => ({ ...p, [toastMsg.id]: true }));
+              setToastUndo({ msgId: toastMsg.id, before, count });
+            }}
+            onUndo={()=>{
+              const { msgId, before } = toastUndo;
+              setDayNotes(prev => [...prev.filter(n => !(n.id in before)), ...Object.values(before).filter(Boolean)]);
+              setInbox(prev => prev.map(m => m.id===msgId ? { ...m, status: "new", doneNote: "" } : m));
+              setToastUndo(null);
+            }}
+          />
         )}
         {tab==="inbox" && (
           <InboxTab inbox={inbox} setInbox={setInbox} sites={sites} dayNotes={dayNotes} setDayNotes={setDayNotes} setPayments={setPayments} />
@@ -4447,15 +4491,40 @@ function tgParsePayment(msg){
 /* ---------- 확인사항: 텔레그램 단톡방 메시지 ---------- */
 const TG_DONE_WORDS = /^(완|완료|입금\s*완료|이체\s*완료|ㅇㅋ|확인)[.!~ㅎ]*$/;
 
-function TgDailyApply({ segs, sites, onApply }){
+// 일보 해석 결과 → 기본 선택 상태 (현장이 정해졌고 '없음'이 아닌 줄만 켜짐)
+const tgDefaultState = segs => segs.map(g => ({ date: g.date, rows: g.rows.map(r => ({ ...r, on: !!r.siteId && !/^없음/.test(r.text) })) }));
+// 선택된 줄을 인원 칸에 합쳐 넣은 새 목록과, 되돌리기용 이전 상태를 돌려줍니다
+function applyDailyToNotes(dayNotes, state){
+  const notes = Object.fromEntries(dayNotes.map(n => [n.id, n]));
+  const before = {};
+  let count = 0;
+  state.forEach(g => g.rows.filter(r => r.on && r.siteId).forEach(r => {
+    const id = `${r.siteId}_${g.date}`;
+    if(!(id in before)) before[id] = notes[id] || null;
+    notes[id] = mergeDayNote(notes[id], { date: g.date, text: r.text }, r.siteId);
+    count++;
+  }));
+  return { next: Object.values(notes), before, count };
+}
+// 자동으로 못 알아본 메시지 → 줄마다 현장을 고를 수 있는 '직접 넣기' 상태
+function tgManualSegs(msg, sites){
+  const lines = (msg.text||"").split("\n").map(l => l.trim()).filter(Boolean);
+  return [{ date: msg.date, rows: (lines.length ? lines : [""]).map(line => {
+    const first = line.split(/\s+/)[0].replace(/[,，·]+$/, "");
+    const site = tgSiteFor(first, sites, msg.date);
+    return site ? { siteId: site.id, text: line.slice(line.indexOf(first) + first.length).trim() || line } : { siteId: "", text: line };
+  }) }];
+}
+
+function TgDailyApply({ segs, sites, onApply, title }){
   // 줄마다 현장을 바꾸거나 빼고 넣을 수 있게
-  const [state, setState] = useState(() => segs.map(g => ({ date: g.date, rows: g.rows.map(r => ({ ...r, on: !!r.siteId && !/^없음/.test(r.text) })) })));
+  const [state, setState] = useState(() => tgDefaultState(segs));
   const siteOpts = [...sites].sort((a,b) => (isSiteEnded(a)?1:0)-(isSiteEnded(b)?1:0) || (a.order??0)-(b.order??0));
   const setRow = (gi, ri, patch) => setState(prev => prev.map((g, i) => i!==gi ? g : { ...g, rows: g.rows.map((r, j) => j!==ri ? r : { ...r, ...patch }) }));
   const count = state.reduce((n, g) => n + g.rows.filter(r => r.on && r.siteId).length, 0);
   return (
     <div className="tg-box">
-      <div className="tg-box-title">🗓 일보로 보여요 — 캘린더 인원 칸에 넣을 내용</div>
+      <div className="tg-box-title">{title || "🗓 일보로 보여요 — 캘린더 인원 칸에 넣을 내용"}</div>
       {state.map((g, gi) => (
         <div key={gi} className="tg-seg">
           <input type="date" value={g.date} onChange={e=>setState(prev => prev.map((x,i) => i===gi ? { ...x, date: e.target.value } : x))} />
@@ -4476,9 +4545,58 @@ function TgDailyApply({ segs, sites, onApply }){
   );
 }
 
+function NewMessageToast({ msg, undo, more, sites, onOpen, onClose, onApply, onUndo }){
+  if(undo) return (
+    <div className="tg-toast" role="status">
+      <div className="tg-toast-title">✅ 인원 칸 {undo.count}곳에 넣었어요</div>
+      <div className="tg-toast-actions">
+        <button className="btn btn-ghost btn-sm" onClick={onUndo}>되돌리기</button>
+        <button className="btn btn-primary btn-sm" onClick={onClose}>확인</button>
+      </div>
+    </div>
+  );
+  const daily = tgParseDaily(msg, sites);
+  const pays = daily ? null : tgParsePayments(msg);
+  const nRows = daily ? tgDefaultState(daily).reduce((n, g) => n + g.rows.filter(r => r.on && r.siteId).length, 0) : 0;
+  const siteNames = daily ? [...new Set(daily.flatMap(g => g.rows.filter(r => r.siteId && !/^없음/.test(r.text)).map(r => (sites.find(s => s.id===r.siteId)?.name||"").replace(/\s*\d.*$/, ""))))].join(", ") : "";
+  return (
+    <div className="tg-toast" role="status">
+      <div className="tg-toast-title">
+        📨 단톡방 새 메시지 · {msg.from}{more>0 && <span className="tg-toast-more"> 외 {more}건</span>}
+        <button className="close-x" onClick={onClose} title="닫기">✕</button>
+      </div>
+      <div className="tg-toast-text">{(msg.text || (msg.hasPhoto ? "(사진)" : "")).slice(0, 140)}</div>
+      {daily && <div className="tg-toast-q">일보로 보여요 ({daily.map(g => g.date.slice(5).replace("-","/")).join(", ")} · {siteNames}). <b>인원 칸에 넣을까요?</b></div>}
+      {pays && <div className="tg-toast-q">이체·정산 요청으로 보여요 ({pays.map(p => (p.name ? p.name+" " : "") + p.amount.toLocaleString("ko-KR")+"원").join(", ")}). 확인사항에서 지급내역에 추가할 수 있어요.</div>}
+      <div className="tg-toast-actions">
+        <button className="btn btn-ghost btn-sm" onClick={onOpen}>확인사항에서 보기</button>
+        {daily && nRows>0 && <button className="btn btn-primary btn-sm" onClick={()=>onApply(daily)}>바로 넣기 ({nRows}곳)</button>}
+      </div>
+    </div>
+  );
+}
+
 function InboxTab({ inbox, setInbox, sites, dayNotes, setDayNotes, setPayments }){
   const [filter, setFilter] = useState("new");
   const [payDraft, setPayDraft] = useState(null); // { msgId, initial }
+  const [manual, setManual] = useState({}); // msgId → true (직접 넣기 칸 열림)
+  const [pasteText, setPasteText] = useState("");
+  const [pasteDate, setPasteDate] = useState(todayStr());
+  const [copied, setCopied] = useState("");
+  function addPasted(){
+    const text = pasteText.trim();
+    if(!text) return;
+    const now = new Date();
+    setInbox(prev => [...prev, { id: "paste-" + uid(), chatId: "", chatTitle: "직접 붙여넣기", messageId: 0, ts: Math.floor(now.getTime()/1000),
+      date: pasteDate, time: `${pad(now.getHours())}:${pad(now.getMinutes())}`, from: "붙여넣기", text,
+      hasPhoto: false, hasFile: false, replyTo: "", replyText: "", edited: false, status: "new" }]);
+    setPasteText("");
+    setFilter("new");
+  }
+  function copyText(msg){
+    const done = () => { setCopied(msg.id); setTimeout(() => setCopied(""), 1500); };
+    try { navigator.clipboard.writeText(msg.text || "").then(done, done); } catch(e){ done(); }
+  }
   const byId = Object.fromEntries(inbox.map(m => [m.id, m]));
   const sorted = [...inbox].sort((a,b) => (b.ts||0) - (a.ts||0));
   const list = filter==="new" ? sorted.filter(m => m.status==="new") : filter==="done" ? sorted.filter(m => m.status!=="new") : sorted;
@@ -4487,13 +4605,10 @@ function InboxTab({ inbox, setInbox, sites, dayNotes, setDayNotes, setPayments }
   const setStatus = (id, status, extra = {}) => setInbox(prev => prev.map(m => m.id===id ? { ...m, status, ...extra } : m));
 
   function applyDaily(msg, state){
-    const notes = Object.fromEntries(dayNotes.map(n => [n.id, n]));
-    state.forEach(g => g.rows.filter(r => r.on && r.siteId).forEach(r => {
-      const id = `${r.siteId}_${g.date}`;
-      notes[id] = mergeDayNote(notes[id], { date: g.date, text: r.text }, r.siteId);
-    }));
-    setDayNotes(Object.values(notes));
+    const { next } = applyDailyToNotes(dayNotes, state);
+    setDayNotes(next);
     setStatus(msg.id, "done", { doneNote: "인원 칸에 넣음" });
+    setManual(prev => ({ ...prev, [msg.id]: false }));
   }
 
   return (
@@ -4513,6 +4628,15 @@ function InboxTab({ inbox, setInbox, sites, dayNotes, setDayNotes, setPayments }
         텔레그램 단톡방 메시지가 1분 안에 여기로 들어와요. <b>일보</b>는 현장별로 나눠서 <b>인원 칸에 넣기</b>, <b>이체·정산 요청</b>은 금액·은행·받는 사람을 찾아서 <b>지급내역에 추가</b>할 수 있어요.
         단톡방에서 "완"으로 답장하면 그 메시지는 자동으로 처리됨으로 바뀌어요.
       </p>
+
+      <div className="card tg-paste">
+        <div className="tg-box-title">📋 카톡·문자 내용 붙여넣기 — 텔레그램 말고 다른 곳의 일보·이체 요청도 여기서 넣을 수 있어요</div>
+        <textarea value={pasteText} onChange={e=>setPasteText(e.target.value)} placeholder={"예)\n11월12일 수\n풍림 장판\n중흥 타일1\n주공 도배"} rows={3} />
+        <div className="tg-paste-row">
+          <label>날짜 없는 글이면 <input type="date" value={pasteDate} onChange={e=>setPasteDate(e.target.value)} /></label>
+          <button className="btn btn-primary btn-sm" disabled={!pasteText.trim()} onClick={addPasted}>확인할 것에 올리기</button>
+        </div>
+      </div>
 
       {inbox.length===0 ? (
         <div className="empty">아직 들어온 메시지가 없어요.<br/>텔레그램 봇을 단톡방에 초대하고 설정을 마치면 여기에 메시지가 쌓여요.</div>
@@ -4536,6 +4660,9 @@ function InboxTab({ inbox, setInbox, sites, dayNotes, setDayNotes, setPayments }
             <div className="tg-text">{msg.text || (msg.hasPhoto ? "(사진만 있음)" : "")}</div>
 
             {daily && <TgDailyApply segs={daily} sites={sites} onApply={state => applyDaily(msg, state)} />}
+            {!daily && manual[msg.id] && (
+              <TgDailyApply segs={tgManualSegs(msg, sites)} sites={sites} title="✍️ 인원 칸에 직접 넣기 — 날짜·현장을 고르고 내용을 고쳐서 넣으세요" onApply={state => applyDaily(msg, state)} />
+            )}
             {pays && pays.map((p, i) => (
               <div key={i} className="tg-box">
                 <div className="tg-box-title">💸 이체·정산 요청으로 보여요</div>
@@ -4553,9 +4680,20 @@ function InboxTab({ inbox, setInbox, sites, dayNotes, setDayNotes, setPayments }
             ))}
 
             <div className="tg-actions">
+              <button className="btn btn-ghost btn-sm" onClick={()=>copyText(msg)}>{copied===msg.id ? "복사됨 ✓" : "📋 내용 복사"}</button>
+              {msg.status==="new" && !daily && (
+                <button className="btn btn-ghost btn-sm" onClick={()=>setManual(prev => ({ ...prev, [msg.id]: !prev[msg.id] }))}>{manual[msg.id] ? "직접 넣기 닫기" : "🗓 인원 칸에 직접 넣기"}</button>
+              )}
+              {msg.status==="new" && !pays && (
+                <button className="btn btn-ghost btn-sm" onClick={()=>{
+                  const amts = tgAmounts(msg.text||"");
+                  setPayDraft({ msgId: msg.id, initial: { date: msg.date, name: "", trade: "", site: "", amount: amts.length ? Math.max(...amts.map(a => a.v)) : "", deduction: "", paid: "", status: "확인필요", bank: TG_BANKS.find(b => (msg.text||"").includes(b)) || "", memo: (msg.text||"").replace(/\d{6,}|\d+(?:[-\s]\d+){2,}/g, "").replace(/\s*\n\s*/g, " / ").slice(0, 120) } });
+                }}>💸 지급내역에 직접 추가</button>
+              )}
               {msg.status==="new"
                 ? <button className="btn btn-ghost btn-sm" onClick={()=>setStatus(msg.id, "done", { doneNote: "확인 완료" })}>✓ 확인 완료</button>
                 : <button className="btn btn-ghost btn-sm" onClick={()=>setStatus(msg.id, "new", { doneNote: "" })}>다시 확인할 것으로</button>}
+              {String(msg.id).startsWith("paste-") && <button className="btn btn-ghost btn-sm" onClick={()=>setInbox(prev => prev.filter(m => m.id!==msg.id))}>지우기</button>}
             </div>
           </div>
         );
