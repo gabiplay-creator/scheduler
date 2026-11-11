@@ -909,6 +909,15 @@ function App(){
   const [quickLinks, setQuickLinks] = useSyncedState("quickLinks", []);
   // 지급내역 (누구에게 얼마 줬는지) — 담당자관리 탭
   const [payments, setPayments] = useSyncedState("payments", []);
+  // 같은 사람 이름 통일 (정수 → 손정수): 이미 저장된 인원 칸·지급내역도 한 번 고칩니다
+  useEffect(() => {
+    if(!sites.length) return;
+    const fixed = fixWorkerNotes(dayNotes, sites);
+    if(fixed) setDayNotes(fixed);
+  }, [dayNotes, sites]);
+  useEffect(() => {
+    if(payments.some(p => canonicalName(p.name)!==p.name)) setPayments(prev => prev.map(p => canonicalName(p.name)!==p.name ? { ...p, name: canonicalName(p.name) } : p));
+  }, [payments]);
   const [synced, setSynced] = useState(false);
 
   useEffect(() => { setSynced(fbReady()); }, []);
@@ -1750,7 +1759,7 @@ function DayWorkersEditModal({ site, date, note, nameSuggestions, lastWageByName
   }
   const total = rows.reduce((sum, r) => sum + (r.name.trim() && r.wage!=="" ? Number(r.wage) : 0), 0);
   function submit(){
-    const workers = rows.filter(r => r.name.trim()).map(r => ({ name: r.name.trim(), wage: r.wage==="" ? null : Number(r.wage) }));
+    const workers = rows.filter(r => r.name.trim()).map(r => ({ name: canonicalName(r.name), wage: r.wage==="" ? null : Number(r.wage) }));
     onSave(workers, legacyText.trim());
     onClose();
   }
@@ -3181,7 +3190,7 @@ const KAKAO_IMPORT_1110 = {
 {
 "id": "kt1110-01",
 "date": "2026-10-24",
-"name": "정수",
+"name": "손정수",
 "trade": "잡부",
 "site": "군포·풍림·소사주공·중흥",
 "amount": 180000,
@@ -3363,7 +3372,7 @@ const KAKAO_IMPORT_1110 = {
 {
 "id": "kt1110-15",
 "date": "2026-10-30",
-"name": "정수",
+"name": "손정수",
 "trade": "잡부",
 "site": "여러 현장",
 "amount": 1089000,
@@ -3519,7 +3528,7 @@ const KAKAO_IMPORT_1110 = {
 {
 "id": "kt1110-27",
 "date": "2026-11-06",
-"name": "정수",
+"name": "손정수",
 "trade": "잡부",
 "site": "여러 현장",
 "amount": 1204400,
@@ -3562,7 +3571,7 @@ const KAKAO_IMPORT_1110 = {
 "site": "한라주공",
 "workers": [
 {
-"name": "정수",
+"name": "손정수",
 "wage": 180000
 }
 ]
@@ -3572,7 +3581,7 @@ const KAKAO_IMPORT_1110 = {
 "site": "한라주공",
 "workers": [
 {
-"name": "정수",
+"name": "손정수",
 "wage": 230000
 }
 ]
@@ -3582,7 +3591,7 @@ const KAKAO_IMPORT_1110 = {
 "site": "중흥",
 "workers": [
 {
-"name": "정수",
+"name": "손정수",
 "wage": 230000
 }
 ]
@@ -3592,7 +3601,7 @@ const KAKAO_IMPORT_1110 = {
 "site": "풍림",
 "workers": [
 {
-"name": "정수",
+"name": "손정수",
 "wage": 180000
 }
 ]
@@ -3602,7 +3611,7 @@ const KAKAO_IMPORT_1110 = {
 "site": "풍림",
 "workers": [
 {
-"name": "정수",
+"name": "손정수",
 "wage": 250000
 }
 ]
@@ -3612,7 +3621,7 @@ const KAKAO_IMPORT_1110 = {
 "site": "중흥",
 "workers": [
 {
-"name": "정수",
+"name": "손정수",
 "wage": 199000
 }
 ]
@@ -3622,7 +3631,7 @@ const KAKAO_IMPORT_1110 = {
 "site": "소사주공",
 "workers": [
 {
-"name": "정수",
+"name": "손정수",
 "wage": 50000
 }
 ]
@@ -3632,7 +3641,7 @@ const KAKAO_IMPORT_1110 = {
 "site": "소사주공",
 "workers": [
 {
-"name": "정수",
+"name": "손정수",
 "wage": 284400
 }
 ]
@@ -3642,7 +3651,7 @@ const KAKAO_IMPORT_1110 = {
 "site": "풍림",
 "workers": [
 {
-"name": "정수",
+"name": "손정수",
 "wage": 230000
 }
 ]
@@ -3652,7 +3661,7 @@ const KAKAO_IMPORT_1110 = {
 "site": "풍림",
 "workers": [
 {
-"name": "정수",
+"name": "손정수",
 "wage": 230000
 }
 ]
@@ -3662,7 +3671,7 @@ const KAKAO_IMPORT_1110 = {
 "site": "소사주공",
 "workers": [
 {
-"name": "정수",
+"name": "손정수",
 "wage": 230000
 }
 ]
@@ -3672,7 +3681,7 @@ const KAKAO_IMPORT_1110 = {
 "site": "풍림",
 "workers": [
 {
-"name": "정수",
+"name": "손정수",
 "wage": 180000
 }
 ]
@@ -3885,6 +3894,50 @@ const fmtWon = v => (v==null || v==="") ? "-" : Number(v).toLocaleString("ko-KR"
 const payRemaining = p => p.status==="지급완료" ? 0 : Math.max(0, num(p.amount) - num(p.deduction) - num(p.paid));
 
 // 카톡 정리 가져오기: 현장 이름 일부(풍림·중흥 …)로 스케줄러의 현장을 찾습니다
+// 같은 사람인데 다르게 적힌 이름 → 하나로 (왼쪽 이름은 오른쪽 이름으로 합쳐집니다)
+const PERSON_ALIASES = { "정수": "손정수" };
+const canonicalName = n => { const t = (n||"").trim(); return PERSON_ALIASES[t] || t; };
+
+// 인원 칸 정리: ① 별명을 본 이름으로 바꾸고 같은 칸의 중복을 합침
+// ② 카톡 가져오기로 '처음 적힌 현장'에 넣은 손정수 일당이, 같은 날 직접 적어둔
+//    다른 현장의 손정수(일당 빈칸)와 겹치면 일당을 그쪽으로 옮김
+// 바꿀 게 없으면 null
+function fixWorkerNotes(notes, sites){
+  let changed = false;
+  let list = notes.map(n => {
+    if(!(n.workers||[]).length) return n;
+    let noteChanged = false;
+    const merged = [];
+    n.workers.forEach(w => {
+      const name = canonicalName(w.name);
+      if(name!==w.name) noteChanged = true;
+      const ex = merged.find(x => x.name===name);
+      if(ex){ noteChanged = true; if(ex.wage==null && w.wage!=null) ex.wage = w.wage; }
+      else merged.push({ ...w, name });
+    });
+    if(!noteChanged) return n;
+    changed = true;
+    return { ...n, workers: merged };
+  });
+  KAKAO_IMPORT_1110.days.forEach(d => {
+    const w = (d.workers||[])[0];
+    if(!w || canonicalName(w.name)!=="손정수") return;
+    const site = findSiteByKeyword(sites, d.site);
+    if(!site) return;
+    const wageNote = list.find(n => n.id===`${site.id}_${d.date}`);
+    if(!wageNote || !(wageNote.workers||[]).some(x => x.name==="손정수" && x.wage===w.wage)) return;
+    const other = list.find(n => n.date===d.date && n.id!==wageNote.id && (n.workers||[]).some(x => x.name==="손정수" && x.wage==null));
+    if(!other) return;
+    changed = true;
+    list = list.map(n => {
+      if(n.id===other.id) return { ...n, workers: n.workers.map(x => x.name==="손정수" && x.wage==null ? { ...x, wage: w.wage } : x) };
+      if(n.id===wageNote.id) return { ...n, workers: n.workers.filter(x => !(x.name==="손정수" && x.wage===w.wage)) };
+      return n;
+    }).filter(n => (n.workers||[]).length || n.text);
+  });
+  return changed ? list : null;
+}
+
 function findSiteByKeyword(sites, keyword){
   const k = keyword.replace(/\s+/g, "");
   return sites.find(s => (s.name||"").replace(/\s+/g, "").includes(k)) || null;
@@ -4105,7 +4158,7 @@ function PaymentsSection({ payments, setPayments, sites, dayNotes, setDayNotes }
               <button className="close-x" onClick={()=>setImportResult(null)}>✕</button>
             </div>
             <p style={{fontSize:14, margin:"0 0 10px"}}>지급내역 <b>{importResult.payments}건</b>, 캘린더 인원 칸 <b>{importResult.filled}곳</b>을 넣었어요.</p>
-            <p style={{fontSize:13, color:"var(--ink-soft)", margin:"0 0 6px"}}>정수 씨 일당은 그날 처음 적힌 현장의 인원 칸에 넣었어요. 다른 현장이면 칸을 눌러 옮겨주세요.</p>
+            <p style={{fontSize:13, color:"var(--ink-soft)", margin:"0 0 6px"}}>손정수 씨 일당은 그날 직접 적어둔 현장이 있으면 그 칸에, 없으면 카톡에 처음 적힌 현장 칸에 넣었어요. 다른 현장이면 칸을 눌러 옮겨주세요.</p>
             {importResult.skipped.length>0 && (
               <>
                 <p style={{fontSize:13, fontWeight:700, margin:"12px 0 6px"}}>현장을 몰라서 캘린더에 넣지 못한 것</p>
